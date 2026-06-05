@@ -5,7 +5,7 @@ export function generateInvoiceNumber(prefix: 'TRX' | 'PRC'): string {
   const now = new Date()
   const date = now.toISOString().slice(0, 10).replace(/-/g, '')
   const time = now.getTime().toString().slice(-6)
-  return \-\-\
+  return prefix + '-' + date + '-' + time
 }
 
 // ============================================

@@ -3,16 +3,13 @@
     "target": "ES2022",
     "module": "CommonJS",
     "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
+    "noEmit": true,
     "paths": {
       "@waregos/types": ["../../packages/types/src/index.ts"],
       "@waregos/utils": ["../../packages/utils/src/index.ts"]

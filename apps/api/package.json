@@ -2,7 +2,7 @@
   "name": "@waregos/api",
   "version": "0.0.1",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx --tsconfig tsconfig.dev.json watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src"
@@ -17,7 +17,9 @@
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.0",
     "@fastify/rate-limit": "^10.0.0",
-    "zod": "^3.24.0"
+    "zod": "^3.24.0",
+    "dotenv": "^16.0.0",
+    "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

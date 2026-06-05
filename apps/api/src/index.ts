@@ -7,6 +7,7 @@ import corsPlugin from './plugins/cors'
 import { authRoutes } from './modules/auth/auth.route'
 import { productsRoutes } from './modules/products/products.route'
 import { catalogRoutes } from './modules/products/catalog.route'
+import { transactionsRoutes } from './modules/transactions/transactions.route'
 
 
 
@@ -28,11 +29,13 @@ const start = async () => {
     await app.register(prismaPlugin)
     await app.register(jwtPlugin)
     await app.register(corsPlugin)
-    await app.register(productsRoutes, { prefix: '/api/products' })
-    await app.register(catalogRoutes, { prefix: '/api/catalog' })
+
 
     // Routes
     await app.register(authRoutes, { prefix: '/api/auth' })
+    await app.register(productsRoutes, { prefix: '/api/products' })
+    await app.register(catalogRoutes, { prefix: '/api/catalog' })
+    await app.register(transactionsRoutes, { prefix: '/api/transactions' })
 
     // Health check
     app.get('/health', async () => ({
