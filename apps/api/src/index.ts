@@ -9,6 +9,8 @@ import { productsRoutes } from './modules/products/products.route'
 import { catalogRoutes } from './modules/products/catalog.route'
 import { transactionsRoutes } from './modules/transactions/transactions.route'
 import { purchasesRoutes } from './modules/stock/purchases.route'
+import { reportsRoutes } from './modules/reports/reports.route'
+
 
 const app = Fastify({
   logger: {
@@ -36,6 +38,7 @@ const start = async () => {
     await app.register(catalogRoutes, { prefix: '/api/catalog' })
     await app.register(transactionsRoutes, { prefix: '/api/transactions' })
     await app.register(purchasesRoutes, { prefix: '/api/purchases' })
+    await app.register(reportsRoutes, { prefix: '/api/reports' })
 
     // Health check
     app.get('/health', async () => ({
