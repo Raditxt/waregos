@@ -5,6 +5,10 @@ import prismaPlugin from './plugins/prisma'
 import jwtPlugin from './plugins/jwt'
 import corsPlugin from './plugins/cors'
 import { authRoutes } from './modules/auth/auth.route'
+import { productsRoutes } from './modules/products/products.route'
+import { catalogRoutes } from './modules/products/catalog.route'
+
+
 
 const app = Fastify({
   logger: {
@@ -24,6 +28,8 @@ const start = async () => {
     await app.register(prismaPlugin)
     await app.register(jwtPlugin)
     await app.register(corsPlugin)
+    await app.register(productsRoutes, { prefix: '/api/products' })
+    await app.register(catalogRoutes, { prefix: '/api/catalog' })
 
     // Routes
     await app.register(authRoutes, { prefix: '/api/auth' })
