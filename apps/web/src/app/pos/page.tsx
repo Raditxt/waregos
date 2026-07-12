@@ -18,7 +18,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import {
-  Search, Plus, Minus, Trash2,
+  Plus, Minus, Trash2,
   ShoppingCart, Banknote, CheckCircle2,
   Loader2, ScanLine
 } from 'lucide-react'
