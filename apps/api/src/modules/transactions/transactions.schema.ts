@@ -2,14 +2,14 @@ import { z } from 'zod'
 
 export const transactionItemSchema = z.object({
   productId: z.string().uuid(),
-  quantity: z.number().int().positive(),
-  sellPrice: z.number().positive(),
+  quantity: z.number().int().positive({ message: 'Quantity harus lebih dari 0' }),
+  sellPrice: z.number().positive({ message: 'Harga jual harus lebih dari 0' }),
 })
 
 export const createTransactionSchema = z.object({
-  items: z.array(transactionItemSchema).min(1),
+  items: z.array(transactionItemSchema).min(1, { message: 'Transaksi harus memiliki minimal 1 item' }),
   paymentMethod: z.enum(['CASH', 'TRANSFER', 'QRIS']),
-  paidAmount: z.number().positive(),
+  paidAmount: z.number().positive({ message: 'Jumlah bayar harus lebih dari 0' }),
   notes: z.string().optional(),
 })
 

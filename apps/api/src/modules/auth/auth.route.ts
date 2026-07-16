@@ -6,8 +6,20 @@ import { JwtPayload } from '@waregos/types'
 export async function authRoutes(app: FastifyInstance) {
   const authService = new AuthService(app.prisma)
 
-  // POST /api/auth/login
-  app.post('/login', async (request, reply) => {
+  // POST /api/auth/login — dengan rate limit ketat
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+        errorResponseBuilder: () => ({
+          success: false,
+          error: 'TOO_MANY_REQUESTS',
+          message: 'Terlalu banyak percobaan login. Coba lagi dalam 1 menit.',
+        })
+      }
+    }
+  }, async (request, reply) => {
     const result = loginSchema.safeParse(request.body)
     if (!result.success) {
       return reply.code(400).send({

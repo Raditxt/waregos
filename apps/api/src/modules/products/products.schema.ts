@@ -6,9 +6,9 @@ export const createProductSchema = z.object({
   barcode: z.string().optional(),
   categoryId: z.string().uuid().optional(),
   unitId: z.string().uuid(),
-  buyPrice: z.number().positive(),
-  sellPrice: z.number().positive(),
-  stock: z.number().int().min(0).default(0),
+  buyPrice: z.number().positive({ message: 'Harga beli harus lebih dari 0' }),
+  sellPrice: z.number().positive({ message: 'Harga jual harus lebih dari 0' }),
+  stock: z.number().int().min(0, { message: 'Stok tidak boleh negatif' }).default(0),
   minStock: z.number().int().min(0).default(5),
 })
 

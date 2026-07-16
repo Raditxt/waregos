@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin'
 import jwt from '@fastify/jwt'
+import rateLimit from '@fastify/rate-limit'  // <-- tambahan import
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { JwtPayload } from '@waregos/types'
 

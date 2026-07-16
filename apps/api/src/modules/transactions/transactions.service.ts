@@ -6,11 +6,29 @@ export class TransactionsService {
   constructor(private prisma: PrismaClient) {}
 
   async create(input: CreateTransactionInput, userId: string) {
-    // 1. Validasi semua produk exist & stok cukup
+    // 1. Validasi semua produk exist & stok cukup — dengan row-level lock (FOR UPDATE)
     const productIds = input.items.map(i => i.productId)
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true }
-    })
+
+    // Gunakan query raw untuk mengunci baris yang dipilih
+    const productsRaw = await this.prisma.$queryRaw<Array<{
+      id: string
+      name: string
+      stock: number
+      buyPrice: any
+      isActive: boolean
+    }>>`
+      SELECT id, name, stock, buy_price as "buyPrice", is_active as "isActive"
+      FROM products
+      WHERE id = ANY(${productIds}::uuid[])
+      AND is_active = true
+      FOR UPDATE
+    `
+
+    // Konversi hasil query ke format yang diharapkan (buyPrice menjadi number)
+    const products = productsRaw.map(p => ({
+      ...p,
+      buyPrice: Number(p.buyPrice)
+    }))
 
     if (products.length !== productIds.length) {
       throw new Error('Satu atau lebih produk tidak ditemukan')

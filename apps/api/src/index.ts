@@ -1,9 +1,30 @@
-import Fastify from 'fastify'
+// ============================================
+// LOAD ENV FIRST — agar variabel environment terbaca
+// ============================================
 import 'dotenv/config'
+
+// ============================================
+// ENVIRONMENT VALIDATION — Fail fast on start
+// ============================================
+const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL']
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`❌ FATAL: Environment variable "${envVar}" is required but not set.`)
+    console.error(`   Please check your apps/api/.env file.`)
+    process.exit(1)
+  }
+}
+
+// ============================================
+// IMPORTS
+// ============================================
+import Fastify from 'fastify'
 
 import prismaPlugin from './plugins/prisma'
 import jwtPlugin from './plugins/jwt'
 import corsPlugin from './plugins/cors'
+import rateLimit from '@fastify/rate-limit'  // <-- tambahan
+
 import { authRoutes } from './modules/auth/auth.route'
 import { productsRoutes } from './modules/products/products.route'
 import { catalogRoutes } from './modules/products/catalog.route'
@@ -11,7 +32,9 @@ import { transactionsRoutes } from './modules/transactions/transactions.route'
 import { purchasesRoutes } from './modules/stock/purchases.route'
 import { reportsRoutes } from './modules/reports/reports.route'
 
-
+// ============================================
+// APP INSTANCE
+// ============================================
 const app = Fastify({
   logger: {
     transport: {
@@ -24,13 +47,21 @@ const app = Fastify({
   }
 })
 
+// ============================================
+// START SERVER
+// ============================================
 const start = async () => {
   try {
     // Plugins
     await app.register(prismaPlugin)
     await app.register(jwtPlugin)
     await app.register(corsPlugin)
-
+    // Rate limit global (tidak aktif secara global, hanya untuk route yang dikonfigurasi)
+    await app.register(rateLimit, {
+      global: false,
+      max: 100,
+      timeWindow: '1 minute',
+    })
 
     // Routes
     await app.register(authRoutes, { prefix: '/api/auth' })
