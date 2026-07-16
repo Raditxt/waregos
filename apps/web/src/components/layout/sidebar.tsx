@@ -13,6 +13,7 @@ import {
   LogOut,
   Store,
   ChevronRight,
+  Users, // <-- tambahan
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/products', label: 'Produk', icon: Package },
   { href: '/purchases', label: 'Pembelian', icon: ShoppingBag },
   { href: '/reports', label: 'Laporan', icon: TrendingUp },
+  { href: '/users', label: 'Users', icon: Users, adminOnly: true }, // <-- tambahan
 ]
 
 export function Sidebar() {
@@ -52,23 +54,25 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href)
-          return (
-            <Link key={href} href={href}>
-              <div className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer',
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}>
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1">{label}</span>
-                {active && <ChevronRight className="w-3 h-3" />}
-              </div>
-            </Link>
-          )
-        })}
+        {navItems
+          .filter(item => !('adminOnly' in item && item.adminOnly && user?.role !== 'ADMIN'))
+          .map(({ href, label, icon: Icon }) => {
+            const active = pathname.startsWith(href)
+            return (
+              <Link key={href} href={href}>
+                <div className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer',
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1">{label}</span>
+                  {active && <ChevronRight className="w-3 h-3" />}
+                </div>
+              </Link>
+            )
+          })}
       </nav>
 
       {/* User info + logout */}

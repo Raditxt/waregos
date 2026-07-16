@@ -1,14 +1,17 @@
 import { FastifyInstance } from 'fastify'
 import { ProductsService } from './products.service'
 import { createProductSchema, updateProductSchema, productQuerySchema } from './products.schema'
+import { JwtPayload } from '@waregos/types'
 
 export async function productsRoutes(app: FastifyInstance) {
-  const service = new ProductsService(app.prisma)
+  // Service akan diinstansiasi per request dengan role yang sesuai
 
   // GET /api/products
   app.get('/', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
+    const payload = request.user as JwtPayload
+    const service = new ProductsService(app.prisma, payload.role)
     const query = productQuerySchema.parse(request.query)
     const result = await service.findAll(query)
     return reply.send({ success: true, ...result })
@@ -18,6 +21,8 @@ export async function productsRoutes(app: FastifyInstance) {
   app.get('/low-stock', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
+    const payload = request.user as JwtPayload
+    const service = new ProductsService(app.prisma, payload.role)
     const data = await service.getLowStock()
     return reply.send({ success: true, data })
   })
@@ -26,6 +31,8 @@ export async function productsRoutes(app: FastifyInstance) {
   app.get('/barcode/:barcode', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
+    const payload = request.user as JwtPayload
+    const service = new ProductsService(app.prisma, payload.role)
     const { barcode } = request.params as { barcode: string }
     const product = await service.findByBarcode(barcode)
     if (!product) {
@@ -38,6 +45,8 @@ export async function productsRoutes(app: FastifyInstance) {
   app.get('/:id', {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
+    const payload = request.user as JwtPayload
+    const service = new ProductsService(app.prisma, payload.role)
     const { id } = request.params as { id: string }
     const product = await service.findById(id)
     if (!product) {
@@ -46,10 +55,11 @@ export async function productsRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: product })
   })
 
-  // POST /api/products
+  // POST /api/products — admin only
   app.post('/', {
     preHandler: [app.adminOnly]
   }, async (request, reply) => {
+    const service = new ProductsService(app.prisma, 'ADMIN')
     const result = createProductSchema.safeParse(request.body)
     if (!result.success) {
       return reply.code(400).send({
@@ -62,10 +72,11 @@ export async function productsRoutes(app: FastifyInstance) {
     return reply.code(201).send({ success: true, data: product })
   })
 
-  // PATCH /api/products/:id
+  // PATCH /api/products/:id — admin only
   app.patch('/:id', {
     preHandler: [app.adminOnly]
   }, async (request, reply) => {
+    const service = new ProductsService(app.prisma, 'ADMIN')
     const { id } = request.params as { id: string }
     const result = updateProductSchema.safeParse(request.body)
     if (!result.success) {
@@ -83,10 +94,11 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   })
 
-  // DELETE /api/products/:id (soft delete)
+  // DELETE /api/products/:id — admin only (soft delete)
   app.delete('/:id', {
     preHandler: [app.adminOnly]
   }, async (request, reply) => {
+    const service = new ProductsService(app.prisma, 'ADMIN')
     const { id } = request.params as { id: string }
     try {
       await service.delete(id)

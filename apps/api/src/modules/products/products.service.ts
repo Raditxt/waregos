@@ -2,9 +2,12 @@ import { PrismaClient } from '@prisma/client'
 import { CreateProductInput, UpdateProductInput, ProductQueryInput } from './products.schema'
 
 export class ProductsService {
-  constructor(private prisma: PrismaClient) {}
+  // Constructor sekarang menerima role opsional (untuk fallback jika tidak diberikan di method)
+  constructor(private prisma: PrismaClient, private role?: string) {}
 
-  async findAll(query: ProductQueryInput) {
+  // Semua method publik sekarang menerima parameter role opsional,
+  // yang akan digunakan untuk menentukan apakah buyPrice ditampilkan.
+  async findAll(query: ProductQueryInput, role?: string) {
     const page = Math.max(1, parseInt(query.page ?? '1'))
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')))
     const skip = (page - 1) * limit
@@ -42,7 +45,7 @@ export class ProductsService {
     ])
 
     return {
-      data: data.map(this.formatProduct),
+      data: data.map(p => this.formatProduct(p, role ?? this.role)),
       meta: {
         total,
         page,
@@ -52,7 +55,7 @@ export class ProductsService {
     }
   }
 
-  async findById(id: string) {
+  async findById(id: string, role?: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -61,10 +64,10 @@ export class ProductsService {
       },
     })
     if (!product) return null
-    return this.formatProduct(product)
+    return this.formatProduct(product, role ?? this.role)
   }
 
-  async findByBarcode(barcode: string) {
+  async findByBarcode(barcode: string, role?: string) {
     const product = await this.prisma.product.findUnique({
       where: { barcode },
       include: {
@@ -73,10 +76,10 @@ export class ProductsService {
       },
     })
     if (!product) return null
-    return this.formatProduct(product)
+    return this.formatProduct(product, role ?? this.role)
   }
 
-  async create(input: CreateProductInput) {
+  async create(input: CreateProductInput, role?: string) {
     const product = await this.prisma.product.create({
       data: {
         name: input.name,
@@ -94,10 +97,10 @@ export class ProductsService {
         unit: { select: { id: true, name: true, symbol: true } },
       },
     })
-    return this.formatProduct(product)
+    return this.formatProduct(product, role ?? this.role)
   }
 
-  async update(id: string, input: UpdateProductInput) {
+  async update(id: string, input: UpdateProductInput, role?: string) {
     const product = await this.prisma.product.update({
       where: { id },
       data: input,
@@ -106,7 +109,7 @@ export class ProductsService {
         unit: { select: { id: true, name: true, symbol: true } },
       },
     })
-    return this.formatProduct(product)
+    return this.formatProduct(product, role ?? this.role)
   }
 
   async delete(id: string) {
@@ -136,7 +139,8 @@ export class ProductsService {
     }))
   }
 
-  private formatProduct(p: any) {
+  // formatProduct sekarang menerima role untuk menentukan apakah buyPrice ditampilkan
+  private formatProduct(p: any, role?: string) {
     return {
       id: p.id,
       name: p.name,
@@ -147,7 +151,8 @@ export class ProductsService {
       unitId: p.unitId,
       unitName: p.unit.name,
       unitSymbol: p.unit.symbol,
-      buyPrice: Number(p.buyPrice),
+      // Hanya ADMIN yang bisa melihat harga beli
+      buyPrice: role === 'ADMIN' ? Number(p.buyPrice) : null,
       sellPrice: Number(p.sellPrice),
       stock: p.stock,
       minStock: p.minStock,

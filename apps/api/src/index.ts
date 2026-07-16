@@ -23,9 +23,10 @@ import Fastify from 'fastify'
 import prismaPlugin from './plugins/prisma'
 import jwtPlugin from './plugins/jwt'
 import corsPlugin from './plugins/cors'
-import rateLimit from '@fastify/rate-limit'  // <-- tambahan
+import rateLimit from '@fastify/rate-limit'
 
 import { authRoutes } from './modules/auth/auth.route'
+import { usersRoutes } from './modules/auth/users.route'
 import { productsRoutes } from './modules/products/products.route'
 import { catalogRoutes } from './modules/products/catalog.route'
 import { transactionsRoutes } from './modules/transactions/transactions.route'
@@ -65,6 +66,7 @@ const start = async () => {
 
     // Routes
     await app.register(authRoutes, { prefix: '/api/auth' })
+    await app.register(usersRoutes, { prefix: '/api/users' })
     await app.register(productsRoutes, { prefix: '/api/products' })
     await app.register(catalogRoutes, { prefix: '/api/catalog' })
     await app.register(transactionsRoutes, { prefix: '/api/transactions' })
