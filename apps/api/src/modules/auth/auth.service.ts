@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
-import { LoginInput } from './auth.schema'
+import { LoginInput, ChangePasswordInput } from './auth.schema'
 
 export class AuthService {
   constructor(private prisma: PrismaClient) {}
@@ -42,5 +42,27 @@ export class AuthService {
       }
     })
     return user
+  }
+
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new Error('User tidak ditemukan')
+
+    const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash)
+    if (!isValid) throw new Error('Password lama tidak benar')
+
+    const newHash = await bcrypt.hash(input.newPassword, 10)
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash }
+    })
+  }
+
+  async adminResetPassword(targetUserId: string, newPassword: string) {
+    const newHash = await bcrypt.hash(newPassword, 10)
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { passwordHash: newHash }
+    })
   }
 }

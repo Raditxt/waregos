@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { AuthService } from './auth.service'
-import { loginSchema } from './auth.schema'
+import { loginSchema, changePasswordSchema, ChangePasswordInput } from './auth.schema'
 import { JwtPayload } from '@waregos/types'
 
 export async function authRoutes(app: FastifyInstance) {
@@ -67,5 +67,66 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: user })
+  })
+
+  // PATCH /api/auth/change-password
+  app.patch('/change-password', {
+    preHandler: [app.authenticate]
+  }, async (request, reply) => {
+    const result = changePasswordSchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.code(400).send({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: result.error.errors[0].message
+      })
+    }
+
+    try {
+      const payload = request.user as JwtPayload
+      await authService.changePassword(payload.sub, result.data)
+      return reply.send({
+        success: true,
+        message: 'Password berhasil diubah'
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal mengubah password'
+      return reply.code(400).send({
+        success: false,
+        error: 'CHANGE_PASSWORD_FAILED',
+        message
+      })
+    }
+  })
+
+  // PATCH /api/auth/users/:id/reset-password (admin only)
+  app.patch('/users/:id/reset-password', {
+    preHandler: [app.adminOnly]
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { newPassword } = request.body as { newPassword: string }
+
+    if (!newPassword || newPassword.length < 6) {
+      return reply.code(400).send({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Password baru minimal 6 karakter'
+      })
+    }
+
+    try {
+      await authService.adminResetPassword(id, newPassword)
+      return reply.send({
+        success: true,
+        message: 'Password berhasil direset'
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal reset password'
+      return reply.code(400).send({
+        success: false,
+        error: 'RESET_FAILED',
+        message
+      })
+    }
   })
 }
