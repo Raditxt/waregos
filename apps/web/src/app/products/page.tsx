@@ -20,6 +20,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import { Plus, Search, Pencil, Trash2, Loader2, PackageX } from 'lucide-react'
 import { AxiosError } from 'axios'
@@ -47,6 +48,14 @@ export default function ProductsPage() {
   const [editTarget, setEditTarget] = useState<ProductDto | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+
+  // State untuk ConfirmDialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    description: string
+    onConfirm: () => void
+  }>({ open: false, title: '', description: '', onConfirm: () => {} })
 
   const fetchProducts = async (q = '') => {
     try {
@@ -91,13 +100,39 @@ export default function ProductsPage() {
     setDialogOpen(true)
   }
 
+  // Helper function untuk menampilkan confirm dialog
+  const showConfirm = (title: string, description: string, onConfirm: () => void) => {
+    setConfirmDialog({ open: true, title, description, onConfirm })
+  }
+
+  const closeConfirm = () => {
+    setConfirmDialog(prev => ({ ...prev, open: false }))
+  }
+
+  const handleDelete = (p: ProductDto) => {
+    showConfirm(
+      'Hapus Produk',
+      `Produk "${p.name}" akan dihapus dari sistem. Tindakan ini tidak dapat dibatalkan.`,
+      async () => {
+        closeConfirm()
+        try {
+          await api.delete(`/products/${p.id}`)
+          toast.success('Produk berhasil dihapus')
+          fetchProducts(search)
+        } catch {
+          toast.error('Gagal menghapus produk')
+        }
+      }
+    )
+  }
+
   const handleSave = async () => {
     if (!form.name || !form.unitId || !form.buyPrice || !form.sellPrice) {
       toast.error('Nama, satuan, harga beli, dan harga jual wajib diisi')
       return
     }
 
-    // 🔥 VALIDASI BARU: Harga jual HARUS lebih tinggi dari harga beli
+    // 🔥 VALIDASI: Harga jual HARUS lebih tinggi dari harga beli
     if (Number(form.sellPrice) <= Number(form.buyPrice)) {
       toast.error('❌ Harga jual harus lebih tinggi dari harga beli.')
       return
@@ -139,17 +174,6 @@ export default function ProductsPage() {
       }
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleDelete = async (p: ProductDto) => {
-    if (!confirm(`Hapus produk "${p.name}"?`)) return
-    try {
-      await api.delete(`/products/${p.id}`)
-      toast.success('Produk dihapus')
-      fetchProducts(search)
-    } catch {
-      toast.error('Gagal menghapus produk')
     }
   }
 
@@ -376,6 +400,16 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel="Ya, Hapus"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

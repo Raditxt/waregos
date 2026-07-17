@@ -20,6 +20,7 @@ import {
   Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue
 } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import { Plus, KeyRound, UserX, UserCheck, Loader2, Users } from 'lucide-react'
 import { AxiosError } from 'axios'
@@ -49,7 +50,24 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // 🔧 Bungkus fetchUsers dengan useCallback agar stabil
+  // State untuk ConfirmDialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    description: string
+    confirmLabel: string
+    onConfirm: () => void
+  }>({ open: false, title: '', description: '', confirmLabel: 'Konfirmasi', onConfirm: () => {} })
+
+  // Helper function untuk menampilkan confirm dialog
+  const showConfirm = (title: string, description: string, confirmLabel: string, onConfirm: () => void) => {
+    setConfirmDialog({ open: true, title, description, confirmLabel, onConfirm })
+  }
+
+  const closeConfirm = () => {
+    setConfirmDialog(prev => ({ ...prev, open: false }))
+  }
+
   const fetchUsers = useCallback(async () => {
     try {
       const res = await api.get('/users')
@@ -59,7 +77,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false)
     }
-  }, []) // dependency kosong, karena tidak bergantung pada variabel lain
+  }, [])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -89,17 +107,31 @@ export default function UsersPage() {
     }
   }
 
-  const handleToggleActive = async (user: User) => {
-    const action = user.isActive ? 'menonaktifkan' : 'mengaktifkan'
-    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${user.name}"?`)) return
+  // handleToggleActive menggunakan ConfirmDialog
+  const handleToggleActive = (user: User) => {
+    const action = user.isActive ? 'nonaktifkan' : 'aktifkan'
+    const actionLabel = user.isActive ? 'Nonaktifkan' : 'Aktifkan'
+    const confirmLabel = user.isActive ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan'
 
-    try {
-      await api.patch(`/users/${user.id}`, { isActive: !user.isActive })
-      toast.success(`User berhasil di${action}`)
-      fetchUsers()
-    } catch {
-      toast.error(`Gagal ${action} user`)
-    }
+    showConfirm(
+      `${actionLabel} User`,
+      // Deskripsi baru sesuai permintaan
+      `${user.isActive 
+        ? `User "${user.name}" akan dinonaktifkan dan tidak bisa login.` 
+        : `User "${user.name}" akan diaktifkan kembali.`
+      }`,
+      confirmLabel,
+      async () => {
+        closeConfirm()
+        try {
+          await api.patch(`/users/${user.id}`, { isActive: !user.isActive })
+          toast.success(`User berhasil di${action}kan`)
+          fetchUsers()
+        } catch {
+          toast.error(`Gagal ${action}kan user`)
+        }
+      }
+    )
   }
 
   const handleResetPassword = async () => {
@@ -316,6 +348,16 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.confirmLabel}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   )
 }

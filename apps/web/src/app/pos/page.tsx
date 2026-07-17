@@ -16,6 +16,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import {
   Plus, Minus, Trash2,
@@ -53,6 +54,12 @@ export default function PosPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // State untuk ConfirmDialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    onConfirm: () => void
+  }>({ open: false, onConfirm: () => {} })
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -123,11 +130,17 @@ export default function PosPage() {
     setCart((prev) => prev.filter((i) => i.productId !== productId))
   }
 
+  // Ganti clearCart dengan confirm dialog
   const clearCart = () => {
     if (cart.length === 0) return
-    if (!confirm('Kosongkan keranjang?')) return
-    setCart([])
-    setPaidAmount('')
+    setConfirmDialog({
+      open: true,
+      onConfirm: () => {
+        setCart([])
+        setPaidAmount('')
+        setConfirmDialog(prev => ({ ...prev, open: false }))
+      }
+    })
   }
 
   const totalAmount = cart.reduce((sum, i) => sum + i.sellPrice * i.quantity, 0)
@@ -441,6 +454,16 @@ export default function PosPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title="Kosongkan Keranjang"
+        description="Semua item di keranjang akan dihapus. Lanjutkan?"
+        confirmLabel="Ya, Kosongkan"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
     </div>
   )
 }
