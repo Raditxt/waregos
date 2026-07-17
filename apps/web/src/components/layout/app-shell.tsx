@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
 import { Sidebar } from './sidebar'
 
+// Halaman yang hanya bisa diakses ADMIN
+const ADMIN_ONLY_ROUTES = ['/users', '/purchases', '/reports']
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { user, hydrate } = useAuthStore()
 
   useEffect(() => {
@@ -14,13 +18,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [hydrate])
 
   useEffect(() => {
-    if (user === null) {
-      const token = localStorage.getItem('waregos_token')
-      if (!token) {
-        router.push('/login')
+    if (typeof window === 'undefined') return
+
+    const token = localStorage.getItem('waregos_token')
+    if (!token) {
+      router.push('/login')
+      return
+    }
+
+    // Cek role untuk halaman admin-only
+    if (user && user.role === 'CASHIER') {
+      const isAdminRoute = ADMIN_ONLY_ROUTES.some(route =>
+        pathname.startsWith(route)
+      )
+      if (isAdminRoute) {
+        router.push('/dashboard')
       }
     }
-  }, [user, router])
+  }, [user, router, pathname])
 
   return (
     <div className="flex min-h-screen bg-muted/30">

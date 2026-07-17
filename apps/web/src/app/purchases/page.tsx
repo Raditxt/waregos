@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -220,8 +220,8 @@ export default function PurchasesPage() {
             </TableHeader>
             <TableBody>
               {purchases.map((p) => (
-                <>
-                  <TableRow key={p.id}>
+                <Fragment key={p.id}>
+                  <TableRow>
                     <TableCell className="font-mono text-xs">{p.invoiceNumber}</TableCell>
                     <TableCell className="text-sm">
                       {format(new Date(p.purchasedAt), 'd MMM yyyy', { locale: id })}
@@ -248,7 +248,7 @@ export default function PurchasesPage() {
                     </TableCell>
                   </TableRow>
                   {expandedId === p.id && (
-                    <TableRow key={p.id + '-detail'}>
+                    <TableRow>
                       <TableCell colSpan={7} className="bg-muted/30 p-4">
                         <div className="space-y-2">
                           {p.items.map((item) => (
@@ -268,7 +268,7 @@ export default function PurchasesPage() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>

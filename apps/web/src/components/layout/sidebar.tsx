@@ -13,19 +13,19 @@ import {
   LogOut,
   Store,
   ChevronRight,
-  Users, // <-- tambahan
+  Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/pos', label: 'Kasir / POS', icon: ShoppingCart },
-  { href: '/products', label: 'Produk', icon: Package },
-  { href: '/purchases', label: 'Pembelian', icon: ShoppingBag },
-  { href: '/reports', label: 'Laporan', icon: TrendingUp },
-  { href: '/users', label: 'Users', icon: Users, adminOnly: true }, // <-- tambahan
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
+  { href: '/pos', label: 'Kasir / POS', icon: ShoppingCart, adminOnly: false },
+  { href: '/products', label: 'Produk', icon: Package, adminOnly: false },
+  { href: '/purchases', label: 'Pembelian', icon: ShoppingBag, adminOnly: true },
+  { href: '/reports', label: 'Laporan', icon: TrendingUp, adminOnly: true },
+  { href: '/users', label: 'Users', icon: Users, adminOnly: true },
 ]
 
 export function Sidebar() {
@@ -55,7 +55,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems
-          .filter(item => !('adminOnly' in item && item.adminOnly && user?.role !== 'ADMIN'))
+          .filter(item => !item.adminOnly || user?.role === 'ADMIN')
           .map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href)
             return (
