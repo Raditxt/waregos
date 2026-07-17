@@ -96,6 +96,19 @@ export default function ProductsPage() {
       toast.error('Nama, satuan, harga beli, dan harga jual wajib diisi')
       return
     }
+
+    // 🔥 VALIDASI BARU: Harga jual HARUS lebih tinggi dari harga beli
+    if (Number(form.sellPrice) <= Number(form.buyPrice)) {
+      toast.error('❌ Harga jual harus lebih tinggi dari harga beli.')
+      return
+    }
+
+    // Harga tidak boleh 0
+    if (Number(form.sellPrice) === 0 || Number(form.buyPrice) === 0) {
+      toast.error('Harga tidak boleh 0')
+      return
+    }
+
     setSaving(true)
     const payload = {
       name: form.name,
@@ -319,6 +332,24 @@ export default function ProductsPage() {
                 onChange={(e) => setForm({ ...form, sellPrice: e.target.value })}
               />
             </div>
+
+            {/* Margin indicator */}
+            {form.buyPrice && form.sellPrice && Number(form.buyPrice) > 0 && (
+              <div className={`col-span-2 rounded-lg px-3 py-2 text-sm flex items-center justify-between
+                ${Number(form.sellPrice) <= Number(form.buyPrice)
+                  ? 'bg-red-50 dark:bg-red-950 text-red-600'
+                  : 'bg-green-50 dark:bg-green-950 text-green-700'
+                }`}>
+                <span>Margin keuntungan:</span>
+                <span className="font-bold">
+                  {Number(form.buyPrice) > 0
+                    ? `${(((Number(form.sellPrice) - Number(form.buyPrice)) / Number(form.buyPrice)) * 100).toFixed(1)}% (${formatRupiah(Number(form.sellPrice) - Number(form.buyPrice))} / item)`
+                    : '-'
+                  }
+                </span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Stok Awal</Label>
               <Input
