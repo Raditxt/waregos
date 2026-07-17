@@ -73,12 +73,29 @@ const start = async () => {
     await app.register(purchasesRoutes, { prefix: '/api/purchases' })
     await app.register(reportsRoutes, { prefix: '/api/reports' })
 
-    // Health check
-    app.get('/health', async () => ({
-      status: 'ok',
-      service: 'waregos-api',
-      timestamp: new Date().toISOString()
-    }))
+    // ============================================
+    // HEALTH CHECK — sekarang cek koneksi DB
+    // ============================================
+    app.get('/health', async (request, reply) => {
+      try {
+        await app.prisma.$queryRaw`SELECT 1`
+        return reply.send({
+          status: 'ok',
+          service: 'waregos-api',
+          database: 'connected',
+          timestamp: new Date().toISOString(),
+          uptime: Math.floor(process.uptime()),
+        })
+      } catch {
+        return reply.code(503).send({
+          status: 'error',
+          service: 'waregos-api',
+          database: 'disconnected',
+          timestamp: new Date().toISOString(),
+          uptime: Math.floor(process.uptime()),
+        })
+      }
+    })
 
     await app.listen({
       port: Number(process.env.API_PORT ?? 3001),
