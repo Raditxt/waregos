@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { api } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,6 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import { Plus, KeyRound, UserX, UserCheck, Loader2, Users } from 'lucide-react'
-import { AxiosError } from 'axios'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
 
@@ -72,8 +71,8 @@ export default function UsersPage() {
     try {
       const res = await api.get('/users')
       setUsers(res.data.data)
-    } catch {
-      toast.error('Gagal memuat data user')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -96,12 +95,8 @@ export default function UsersPage() {
       setAddDialogOpen(false)
       setForm(emptyForm)
       fetchUsers()
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Gagal menambahkan user')
-      } else {
-        toast.error('Gagal menambahkan user')
-      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -127,8 +122,8 @@ export default function UsersPage() {
           await api.patch(`/users/${user.id}`, { isActive: !user.isActive })
           toast.success(`User berhasil di${action}kan`)
           fetchUsers()
-        } catch {
-          toast.error(`Gagal ${action}kan user`)
+        } catch (error) {
+          toast.error(getErrorMessage(error))
         }
       }
     )
@@ -146,12 +141,8 @@ export default function UsersPage() {
       setResetDialogOpen(false)
       setNewPassword('')
       setSelectedUser(null)
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Gagal reset password')
-      } else {
-        toast.error('Gagal reset password')
-      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }

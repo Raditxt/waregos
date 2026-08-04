@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { api } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { ProductDto } from '@waregos/types'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,6 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import { Plus, Search, Pencil, Trash2, Loader2, PackageX } from 'lucide-react'
-import { AxiosError } from 'axios'
 
 interface Category { id: string; name: string }
 interface Unit { id: string; name: string; symbol: string }
@@ -61,8 +60,8 @@ export default function ProductsPage() {
     try {
       const res = await api.get('/products', { params: { search: q, limit: 100 } })
       setProducts(res.data.data)
-    } catch {
-      toast.error('Gagal memuat produk')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     }
   }
 
@@ -75,6 +74,8 @@ export default function ProductsPage() {
       setCategories(catRes.data.data)
       setUnits(unitRes.data.data)
       setProducts(prodRes.data.data)
+    }).catch(() => {
+      toast.error('Gagal memuat data')
     }).finally(() => setLoading(false))
   }, [])
 
@@ -119,8 +120,8 @@ export default function ProductsPage() {
           await api.delete(`/products/${p.id}`)
           toast.success('Produk berhasil dihapus')
           fetchProducts(search)
-        } catch {
-          toast.error('Gagal menghapus produk')
+        } catch (error) {
+          toast.error(getErrorMessage(error))
         }
       }
     )
@@ -166,12 +167,8 @@ export default function ProductsPage() {
       }
       setDialogOpen(false)
       fetchProducts(search)
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Gagal menyimpan produk')
-      } else {
-        toast.error('Gagal menyimpan produk')
-      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }

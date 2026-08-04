@@ -19,7 +19,7 @@ export default function RootLayout({
     <html lang="id" suppressHydrationWarning>
       <body className={geist.className}>
         {children}
-        <Toaster richColors position="top-right" />
+        <Toaster richColors position="top-right" duration={4000} />
       </body>
     </html>
   )

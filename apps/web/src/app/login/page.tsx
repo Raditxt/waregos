@@ -3,20 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
-import { api } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Loader2, Store } from 'lucide-react'
-import { AxiosError } from 'axios' // pastikan axios terinstall
+import { Loader2, Store, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async () => {
@@ -33,12 +33,7 @@ export default function LoginPage() {
       toast.success('Login berhasil!')
       router.push('/dashboard')
     } catch (err: unknown) {
-      // Cek apakah error dari Axios
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Login gagal')
-      } else {
-        toast.error('Login gagal')
-      }
+      toast.error(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -61,24 +56,43 @@ export default function LoginPage() {
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"
-              placeholder="admin"
+              placeholder="Masukkan username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               disabled={loading}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loading}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Masukkan password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                disabled={loading}
+                autoComplete="new-password"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword
+                  ? <EyeOff className="w-4 h-4" />
+                  : <Eye className="w-4 h-4" />
+                }
+              </button>
+            </div>
           </div>
           <Button
             className="w-full"

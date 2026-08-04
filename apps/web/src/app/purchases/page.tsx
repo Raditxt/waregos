@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, Fragment } from 'react'
-import { api } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +21,6 @@ import {
   Plus, Trash2, Loader2,
   ShoppingBag, ChevronDown, ChevronUp
 } from 'lucide-react'
-import { AxiosError } from 'axios'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
 
@@ -60,8 +59,8 @@ export default function PurchasesPage() {
     try {
       const res = await api.get('/purchases', { params: { limit: 50 } })
       setPurchases(res.data.data)
-    } catch {
-      toast.error('Gagal memuat data pembelian')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     }
   }
 
@@ -77,6 +76,8 @@ export default function PurchasesPage() {
         buyPrice: p.buyPrice,
       })))
       setPurchases(purRes.data.data)
+    }).catch((error) => {
+      toast.error(getErrorMessage(error))
     }).finally(() => setLoading(false))
   }, [])
 
@@ -166,12 +167,8 @@ export default function PurchasesPage() {
       setProductResults([[]])
       setNotes('')
       fetchPurchases()
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Gagal menyimpan pembelian')
-      } else {
-        toast.error('Gagal menyimpan pembelian')
-      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }

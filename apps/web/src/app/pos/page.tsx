@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { api } from '@/lib/api'
+import { api, getErrorMessage } from '@/lib/api'
 import { ProductDto } from '@waregos/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,6 @@ import {
   ShoppingCart, Banknote, CheckCircle2,
   Loader2, ScanLine
 } from 'lucide-react'
-import { AxiosError } from 'axios'
 
 interface CartItem {
   productId: string
@@ -72,8 +71,8 @@ export default function PosPage() {
           params: { search, limit: 20 }
         })
         setProducts(res.data.data)
-      } catch {
-        // silent fail on search
+      } catch (error) {
+        toast.error(getErrorMessage(error))
       }
     }
     fetchProducts()
@@ -183,12 +182,8 @@ export default function PosPage() {
       setCart([])
       setPaidAmount('')
       toast.success('Transaksi berhasil!')
-    } catch (err: unknown) {
-      if (err instanceof AxiosError) {
-        toast.error(err.response?.data?.message ?? 'Transaksi gagal')
-      } else {
-        toast.error('Transaksi gagal')
-      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }

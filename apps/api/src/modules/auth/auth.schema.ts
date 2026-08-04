@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 export const loginSchema = z.object({
-  username: z.string().min(3).max(50),
-  password: z.string().min(6)
+  username: z.string().min(3, { message: 'Username minimal 3 karakter' }).max(50),
+  password: z.string().min(6, { message: 'Password minimal 6 karakter' }),
 })
 
 export type LoginInput = z.infer<typeof loginSchema>
