@@ -32,6 +32,15 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [monthly, setMonthly] = useState<MonthlyDay[]>([])
   const [loading, setLoading] = useState(true)
+  const [expiringSoon, setExpiringSoon] = useState<Array<{
+    id: string
+    name: string
+    stock: number
+    unit: string
+    expiryDate: string
+    daysLeft: number
+    status: string
+  }>>([])
 
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd')
@@ -39,10 +48,14 @@ export default function DashboardPage() {
 
     Promise.all([
       api.get(`/reports/summary?date=${today}`),
-      api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
-    ]).then(([summaryRes, monthlyRes]) => {
+      api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`),
+      api.get('/products/expiring-soon')
+    ]).then(([summaryRes, monthlyRes, expiringRes]) => {
       setSummary(summaryRes.data.data)
       setMonthly(monthlyRes.data.data.daily ?? [])
+      setExpiringSoon(expiringRes.data.data ?? [])
+    }).catch((error) => {
+      console.error('Failed to load dashboard data:', error)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -113,6 +126,44 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Expiry Alert */}
+      {expiringSoon.length > 0 && (
+        <Card className="border-orange-200 dark:border-orange-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-orange-600">
+              <Package className="w-4 h-4" />
+              Peringatan Produk ({expiringSoon.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {expiringSoon.map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                  <div>
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-muted-foreground ml-2">
+                      (stok: {p.stock} {p.unit})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(p.expiryDate), 'd MMM yyyy', { locale: id })}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      p.status === 'expired'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-orange-100 text-orange-700'
+                    }`}>
+                      {p.status === 'expired' ? 'Kadaluarsa' : `${p.daysLeft} hari lagi`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Chart */}
       <Card>

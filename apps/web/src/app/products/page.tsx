@@ -23,6 +23,8 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import { Plus, Search, Pencil, Trash2, Loader2, PackageX } from 'lucide-react'
+import { format } from 'date-fns'
+import { id } from 'date-fns/locale'
 
 interface Category { id: string; name: string }
 interface Unit { id: string; name: string; symbol: string }
@@ -32,6 +34,18 @@ const emptyForm = {
   categoryId: '', unitId: '',
   buyPrice: '', sellPrice: '',
   stock: '0', minStock: '5',
+  expiryDate: '', expiryAlertDays: '7',
+}
+
+// Helper function untuk format angka dengan titik ribuan
+function formatNumber(value: string): string {
+  const num = value.replace(/\D/g, '')
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+// Helper function untuk menghapus titik (parse ke angka murni)
+function parseNumber(value: string): string {
+  return value.replace(/\./g, '')
 }
 
 export default function ProductsPage() {
@@ -93,10 +107,12 @@ export default function ProductsPage() {
       barcode: p.barcode ?? '',
       categoryId: p.categoryId ?? '',
       unitId: p.unitId,
-      buyPrice: String(p.buyPrice),
+      buyPrice: String(p.buyPrice ?? ''),
       sellPrice: String(p.sellPrice),
       stock: String(p.stock),
       minStock: String(p.minStock),
+      expiryDate: p.expiryDate ? p.expiryDate.slice(0, 10) : '',
+      expiryAlertDays: String(p.expiryAlertDays ?? 7),
     })
     setDialogOpen(true)
   }
@@ -156,6 +172,8 @@ export default function ProductsPage() {
       sellPrice: Number(form.sellPrice),
       stock: Number(form.stock),
       minStock: Number(form.minStock),
+      expiryDate: form.expiryDate ? new Date(form.expiryDate).toISOString() : undefined,
+      expiryAlertDays: form.expiryAlertDays ? Number(form.expiryAlertDays) : 7,
     }
     try {
       if (editTarget) {
@@ -230,6 +248,7 @@ export default function ProductsPage() {
                 <TableHead className="text-right">Harga Beli</TableHead>
                 <TableHead className="text-right">Harga Jual</TableHead>
                 <TableHead className="text-center">Stok</TableHead>
+                <TableHead className="text-center">Kadaluarsa</TableHead>
                 {isAdmin && <TableHead className="text-center">Aksi</TableHead>}
               </TableRow>
             </TableHeader>
@@ -252,12 +271,35 @@ export default function ProductsPage() {
                     )}
                   </TableCell>
                   <TableCell>{p.unitSymbol}</TableCell>
-                  <TableCell className="text-right">{formatRupiah(p.buyPrice)}</TableCell>
+                  <TableCell className="text-right">
+                    {p.buyPrice !== null ? formatRupiah(p.buyPrice) : '—'}
+                  </TableCell>                  
                   <TableCell className="text-right">{formatRupiah(p.sellPrice)}</TableCell>
                   <TableCell className="text-center">
                     <Badge variant={p.stock <= p.minStock ? 'destructive' : 'outline'}>
                       {p.stock} {p.unitSymbol}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {p.expiryDate ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs">
+                          {format(new Date(p.expiryDate), 'd MMM yyyy', { locale: id })}
+                        </span>
+                        {p.expiryStatus === 'expired' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                            Kadaluarsa
+                          </span>
+                        )}
+                        {p.expiryStatus === 'expiring_soon' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700">
+                            Segera Habis
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="text-center">
@@ -335,23 +377,37 @@ export default function ProductsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Harga Beli dengan format titik ribuan */}
             <div className="space-y-2">
               <Label>Harga Beli *</Label>
-              <Input
-                type="number"
-                placeholder="2500"
-                value={form.buyPrice}
-                onChange={(e) => setForm({ ...form, buyPrice: e.target.value })}
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  className="pl-9"
+                  value={formatNumber(form.buyPrice)}
+                  onChange={(e) => setForm({ ...form, buyPrice: parseNumber(e.target.value) })}
+                />
+              </div>
             </div>
+
+            {/* Harga Jual dengan format titik ribuan */}
             <div className="space-y-2">
               <Label>Harga Jual *</Label>
-              <Input
-                type="number"
-                placeholder="3000"
-                value={form.sellPrice}
-                onChange={(e) => setForm({ ...form, sellPrice: e.target.value })}
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  className="pl-9"
+                  value={formatNumber(form.sellPrice)}
+                  onChange={(e) => setForm({ ...form, sellPrice: parseNumber(e.target.value) })}
+                />
+              </div>
             </div>
 
             {/* Margin indicator */}
@@ -385,6 +441,25 @@ export default function ProductsPage() {
                 type="number"
                 value={form.minStock}
                 onChange={(e) => setForm({ ...form, minStock: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tanggal Kadaluarsa</Label>
+              <Input
+                type="date"
+                value={form.expiryDate}
+                onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                min={new Date().toISOString().slice(0, 10)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Alert Sebelum Kadaluarsa (hari)</Label>
+              <Input
+                type="number"
+                min="1"
+                max="90"
+                value={form.expiryAlertDays}
+                onChange={(e) => setForm({ ...form, expiryAlertDays: e.target.value })}
               />
             </div>
           </div>

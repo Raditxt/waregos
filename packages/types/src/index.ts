@@ -45,10 +45,13 @@ export interface ProductDto {
   unitId: string
   unitName: string
   unitSymbol: string
-  buyPrice: number
+  buyPrice: number | null         // <-- diperbarui menjadi nullable
   sellPrice: number
   stock: number
   minStock: number
+  expiryDate: string | null       // <-- field baru
+  expiryAlertDays: number         // <-- field baru
+  expiryStatus: 'ok' | 'expiring_soon' | 'expired' | null // <-- field baru
   isActive: boolean
 }
 
@@ -62,6 +65,8 @@ export interface CreateProductRequest {
   sellPrice: number
   stock?: number
   minStock?: number
+  expiryDate?: string             // <-- field baru (opsional)
+  expiryAlertDays?: number        // <-- field baru (opsional)
 }
 
 export interface UpdateProductRequest extends Partial<CreateProductRequest> {}

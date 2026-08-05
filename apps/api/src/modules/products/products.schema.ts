@@ -10,6 +10,8 @@ export const createProductSchema = z.object({
   sellPrice: z.number().positive({ message: 'Harga jual harus lebih dari 0' }),
   stock: z.number().int().min(0, { message: 'Stok tidak boleh negatif' }).default(0),
   minStock: z.number().int().min(0).default(5),
+  expiryDate: z.string().datetime().optional(),
+  expiryAlertDays: z.number().int().min(1).default(7).optional(),
 })
 
 export const updateProductSchema = createProductSchema.partial()
