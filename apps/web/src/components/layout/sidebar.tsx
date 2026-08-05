@@ -14,6 +14,7 @@ import {
   Store,
   ChevronRight,
   Users,
+  BookCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/pos', label: 'Kasir / POS', icon: ShoppingCart, adminOnly: false },
   { href: '/products', label: 'Produk', icon: Package, adminOnly: false },
   { href: '/purchases', label: 'Pembelian', icon: ShoppingBag, adminOnly: true },
+  { href: '/closing', label: 'Closing', icon: BookCheck, adminOnly: false },
   { href: '/reports', label: 'Laporan', icon: TrendingUp, adminOnly: true },
   { href: '/users', label: 'Users', icon: Users, adminOnly: true },
 ]

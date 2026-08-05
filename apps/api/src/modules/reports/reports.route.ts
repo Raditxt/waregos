@@ -184,4 +184,84 @@ export async function reportsRoutes(app: FastifyInstance) {
       }))
     })
   })
+
+  // GET /api/reports/closing?date=2026-08-05
+  app.get('/closing', {
+    preHandler: [app.authenticate]
+  }, async (request, reply) => {
+    const { date } = request.query as { date?: string }
+    const target = date ? new Date(date) : new Date()
+    const from = startOfDay(target)
+    const to = endOfDay(target)
+
+    const transactions = await app.prisma.transaction.findMany({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: 'COMPLETED'
+      },
+      include: { items: true }
+    })
+
+    const cancelled = await app.prisma.transaction.count({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: 'CANCELLED'
+      }
+    })
+
+    // Breakdown per metode bayar
+    const byMethod = {
+      CASH: { count: 0, total: 0 },
+      TRANSFER: { count: 0, total: 0 },
+      QRIS: { count: 0, total: 0 },
+    }
+
+    let totalRevenue = 0
+    let totalProfit = 0
+    let totalItems = 0
+
+    for (const trx of transactions) {
+      const method = trx.paymentMethod as 'CASH' | 'TRANSFER' | 'QRIS'
+      byMethod[method].count += 1
+      byMethod[method].total += Number(trx.totalAmount)
+      totalRevenue += Number(trx.totalAmount)
+      totalItems += trx.items.reduce((s, i) => s + i.quantity, 0)
+      totalProfit += trx.items.reduce((s, i) => {
+        return s + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity
+      }, 0)
+    }
+
+    // Ambil transaksi terakhir
+    const lastTransaction = await app.prisma.transaction.findFirst({
+      where: {
+        createdAt: { gte: from, lte: to },
+        status: 'COMPLETED'
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        invoiceNumber: true,
+        createdAt: true,
+        totalAmount: true,
+      }
+    })
+
+    return reply.send({
+      success: true,
+      data: {
+        date: target.toISOString().slice(0, 10),
+        totalTransactions: transactions.length,
+        cancelledTransactions: cancelled,
+        totalRevenue,
+        totalProfit,
+        totalItems,
+        expectedCash: byMethod.CASH.total,
+        byPaymentMethod: byMethod,
+        lastTransaction: lastTransaction ? {
+          invoiceNumber: lastTransaction.invoiceNumber,
+          createdAt: lastTransaction.createdAt.toISOString(),
+          totalAmount: Number(lastTransaction.totalAmount),
+        } : null,
+      }
+    })
+  })
 }
