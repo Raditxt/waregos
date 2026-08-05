@@ -1,21 +1,58 @@
-﻿node_modules/
+﻿# Dependencies
+node_modules/
+
+# Build outputs
 dist/
-.env
-.env.local
-*.env
 .next/
 build/
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
+out/
 
-# Local scripts
+# Environment variables (JANGAN commit ini)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Backup files (data sensitif)
+backups/
+*.sql
+*.dump
+
+# Local scripts (Windows specific)
 start.ps1
+
+# Logs
+logs/
+*.log
+npm-debug.log*
 
 # OS
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
 
 # IDE
 .vscode/settings.json
+.vscode/launch.json
 .idea/
+*.swp
+*.swo
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+
+# Turbo
+.turbo/
+
+# Testing
+coverage/
+.nyc_output/
