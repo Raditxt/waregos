@@ -6,55 +6,41 @@ export class TransactionsService {
   constructor(private prisma: PrismaClient) {}
 
   async create(input: CreateTransactionInput, userId: string) {
-    // 1. Validasi semua produk exist & stok cukup — dengan row-level lock (FOR UPDATE)
-    const productIds = input.items.map(i => i.productId)
-
-    // Gunakan query raw untuk mengunci baris yang dipilih
-    const productsRaw = await this.prisma.$queryRaw<Array<{
-      id: string
-      name: string
-      stock: number
-      buyPrice: any
-      isActive: boolean
-    }>>`
-      SELECT id, name, stock, buy_price as "buyPrice", is_active as "isActive"
-      FROM products
-      WHERE id = ANY(${productIds}::uuid[])
-      AND is_active = true
-      FOR UPDATE
-    `
-
-    // Konversi hasil query ke format yang diharapkan (buyPrice menjadi number)
-    const products = productsRaw.map(p => ({
-      ...p,
-      buyPrice: Number(p.buyPrice)
-    }))
-
-    if (products.length !== productIds.length) {
-      throw new Error('Satu atau lebih produk tidak ditemukan')
-    }
-
-    for (const item of input.items) {
-      const product = products.find(p => p.id === item.productId)!
-      if (product.stock < item.quantity) {
-        throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`)
-      }
-    }
-
-    // 2. Hitung total
-    const totalAmount = input.items.reduce((sum, item) => {
-      return sum + item.sellPrice * item.quantity
-    }, 0)
-
-    if (input.paidAmount < totalAmount) {
-      throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`)
-    }
-
-    const changeAmount = input.paidAmount - totalAmount
-
-    // 3. Buat transaksi + items + update stok dalam 1 transaction DB
+    // Jalankan seluruh operasi dalam satu transaksi Prisma
     const transaction = await this.prisma.$transaction(async (tx) => {
-      // Buat transaksi
+      // 1. Ambil semua produk yang dibutuhkan (dengan row-level lock otomatis)
+      const productIds = input.items.map(i => i.productId)
+      const products = await tx.product.findMany({
+        where: {
+          id: { in: productIds },
+          isActive: true
+        }
+      })
+
+      if (products.length !== productIds.length) {
+        throw new Error('Satu atau lebih produk tidak ditemukan')
+      }
+
+      // 2. Validasi stok
+      for (const item of input.items) {
+        const product = products.find(p => p.id === item.productId)!
+        if (product.stock < item.quantity) {
+          throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`)
+        }
+      }
+
+      // 3. Hitung total
+      const totalAmount = input.items.reduce((sum, item) => {
+        return sum + item.sellPrice * item.quantity
+      }, 0)
+
+      if (input.paidAmount < totalAmount) {
+        throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`)
+      }
+
+      const changeAmount = input.paidAmount - totalAmount
+
+      // 4. Buat transaksi
       const trx = await tx.transaction.create({
         data: {
           invoiceNumber: generateInvoiceNumber('TRX'),
@@ -87,7 +73,7 @@ export class TransactionsService {
         }
       })
 
-      // Update stok & catat stock movement
+      // 5. Update stok & buat stock movement
       for (const item of input.items) {
         const product = products.find(p => p.id === item.productId)!
         const newStock = product.stock - item.quantity
