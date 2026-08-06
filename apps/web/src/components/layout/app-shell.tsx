@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/store'
 import { Sidebar } from './sidebar'
 
 // Halaman yang hanya bisa diakses ADMIN
-const ADMIN_ONLY_ROUTES = ['/users', '/purchases', '/reports']
+const ADMIN_ONLY_ROUTES = ['/users', '/purchases', '/reports', '/audit'] // <-- ditambahkan '/audit'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()

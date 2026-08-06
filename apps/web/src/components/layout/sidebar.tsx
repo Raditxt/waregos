@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Users,
   BookCheck,
+  ShieldCheck, // <-- ditambahkan
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +29,7 @@ const navItems = [
   { href: '/closing', label: 'Closing', icon: BookCheck, adminOnly: false },
   { href: '/reports', label: 'Laporan', icon: TrendingUp, adminOnly: true },
   { href: '/users', label: 'Users', icon: Users, adminOnly: true },
+  { href: '/audit', label: 'Audit Log', icon: ShieldCheck, adminOnly: true }, // <-- ditambahkan
 ]
 
 export function Sidebar() {
