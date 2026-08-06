@@ -161,7 +161,7 @@ export class ProductsService {
     }))
   }
 
-  // ─── EXPIRING SOON REPORT (baru) ───────────────────────────
+  // ─── EXPIRING SOON REPORT ──────────────────────────────────
   async getExpiringSoon() {
     const products = await this.prisma.product.findMany({
       where: {
@@ -197,6 +197,52 @@ export class ProductsService {
         }
       })
       .filter((p) => p.status !== 'ok') // hanya tampilkan yang expired atau expiring_soon
+  }
+
+  // ─── DEAD STOCK REPORT (baru) ──────────────────────────────
+  async getDeadStock(dayThreshold = 30) {
+    const thresholdDate = new Date()
+    thresholdDate.setDate(thresholdDate.getDate() - dayThreshold)
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        isActive: true,
+        stock: { gt: 0 },
+        OR: [
+          { lastSoldAt: null },
+          { lastSoldAt: { lt: thresholdDate } }
+        ]
+      },
+      include: {
+        unit: { select: { symbol: true } },
+        category: { select: { name: true } },
+      },
+      orderBy: { lastSoldAt: 'asc' }
+    })
+
+    const now = new Date()
+    return products.map(p => {
+      const daysSinceLastSold = p.lastSoldAt
+        ? Math.floor((now.getTime() - p.lastSoldAt.getTime()) / (1000 * 60 * 60 * 24))
+        : null
+
+      return {
+        id: p.id,
+        name: p.name,
+        stock: p.stock,
+        unit: p.unit.symbol,
+        category: p.category?.name ?? null,
+        buyPrice: Number(p.buyPrice),
+        stockValue: Number(p.buyPrice) * p.stock,
+        lastSoldAt: p.lastSoldAt?.toISOString() ?? null,
+        daysSinceLastSold,
+        status: daysSinceLastSold === null
+          ? 'never_sold'
+          : daysSinceLastSold >= 60
+            ? 'critical'
+            : 'warning',
+      }
+    })
   }
 
   // ─── FORMAT RESPONSE ────────────────────────────────────────

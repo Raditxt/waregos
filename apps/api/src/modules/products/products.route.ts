@@ -33,7 +33,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   )
 
-  // ─── GET /api/products/expiring-soon ──────────────────────── (BARU)
+  // ─── GET /api/products/expiring-soon ────────────────────────
   app.get(
     '/expiring-soon',
     { preHandler: [app.authenticate] },
@@ -41,6 +41,18 @@ export async function productsRoutes(app: FastifyInstance) {
       const payload = request.user as JwtPayload
       const service = new ProductsService(app.prisma, payload.role)
       const data = await service.getExpiringSoon()
+      return reply.send({ success: true, data })
+    }
+  )
+
+  // ─── GET /api/products/dead-stock ─────────────────────────── (BARU)
+  app.get(
+    '/dead-stock',
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const { days } = request.query as { days?: string }
+      const service = new ProductsService(app.prisma, 'ADMIN')
+      const data = await service.getDeadStock(days ? Number(days) : 30)
       return reply.send({ success: true, data })
     }
   )

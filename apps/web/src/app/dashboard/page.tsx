@@ -27,6 +27,17 @@ interface MonthlyDay {
   totalTransactions: number
 }
 
+interface DeadStockItem {
+  id: string
+  name: string
+  stock: number
+  unit: string
+  category: string | null
+  stockValue: number
+  daysSinceLastSold: number | null
+  status: string
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore()
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -41,6 +52,7 @@ export default function DashboardPage() {
     daysLeft: number
     status: string
   }>>([])
+  const [deadStock, setDeadStock] = useState<DeadStockItem[]>([])  // <-- state baru
 
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd')
@@ -49,11 +61,13 @@ export default function DashboardPage() {
     Promise.all([
       api.get(`/reports/summary?date=${today}`),
       api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`),
-      api.get('/products/expiring-soon')
-    ]).then(([summaryRes, monthlyRes, expiringRes]) => {
+      api.get('/products/expiring-soon'),
+      api.get('/products/dead-stock')  // <-- tambahan fetch dead stock
+    ]).then(([summaryRes, monthlyRes, expiringRes, deadStockRes]) => {
       setSummary(summaryRes.data.data)
       setMonthly(monthlyRes.data.data.daily ?? [])
       setExpiringSoon(expiringRes.data.data ?? [])
+      setDeadStock(deadStockRes.data.data ?? [])
     }).catch((error) => {
       console.error('Failed to load dashboard data:', error)
     }).finally(() => setLoading(false))
@@ -100,6 +114,9 @@ export default function DashboardPage() {
       color: 'text-orange-500',
     },
   ]
+
+  // Hitung total modal tertahan dari dead stock
+  const totalDeadStockValue = deadStock.reduce((sum, p) => sum + p.stockValue, 0)
 
   return (
     <div className="space-y-6">
@@ -160,6 +177,51 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dead Stock Alert */}
+      {deadStock.length > 0 && (
+        <Card className="border-yellow-200 dark:border-yellow-800">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-yellow-600">
+              <Package className="w-4 h-4" />
+              Dead Stock ({deadStock.length} produk — modal tertahan Rp {totalDeadStockValue.toLocaleString('id-ID')})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {deadStock.slice(0, 5).map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+                  <div>
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-muted-foreground ml-2">
+                      ({p.stock} {p.unit})
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    p.status === 'never_sold'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : p.status === 'critical'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {p.status === 'never_sold'
+                      ? 'Belum pernah terjual'
+                      : p.status === 'critical'
+                        ? `${p.daysSinceLastSold} hari tidak terjual`
+                        : `${p.daysSinceLastSold} hari`
+                    }
+                  </span>
+                </div>
+              ))}
+              {deadStock.length > 5 && (
+                <p className="text-xs text-muted-foreground text-center pt-1">
+                  +{deadStock.length - 5} produk lainnya
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

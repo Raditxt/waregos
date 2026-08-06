@@ -60,7 +60,7 @@ model User {
   transactions Transaction[]
   purchases    Purchase[]
   adjustments  StockMovement[]
-  activityLogs ActivityLog[]   // ← tambahkan ini
+  activityLogs ActivityLog[]
 
   @@map("users")
 }
@@ -100,8 +100,9 @@ model Product {
   sellPrice        Decimal  @map("sell_price") @db.Decimal(12, 2)
   stock            Int      @default(0)
   minStock         Int      @default(5) @map("min_stock")
-  expiryDate       DateTime? @map("expiry_date")          // <-- field baru
-  expiryAlertDays  Int      @default(7) @map("expiry_alert_days") // <-- field baru
+  expiryDate       DateTime? @map("expiry_date")
+  expiryAlertDays  Int      @default(7) @map("expiry_alert_days")
+  lastSoldAt       DateTime? @map("last_sold_at")        // <-- field baru
   isActive         Boolean  @default(true) @map("is_active")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

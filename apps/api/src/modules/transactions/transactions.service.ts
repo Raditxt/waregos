@@ -73,14 +73,17 @@ export class TransactionsService {
         }
       })
 
-      // 5. Update stok & buat stock movement
+      // 5. Update stok, lastSoldAt & buat stock movement
       for (const item of input.items) {
         const product = products.find(p => p.id === item.productId)!
         const newStock = product.stock - item.quantity
 
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: newStock }
+          data: {
+            stock: newStock,
+            lastSoldAt: new Date(), // <-- update terakhir kali produk terjual
+          }
         })
 
         await tx.stockMovement.create({
@@ -167,7 +170,7 @@ export class TransactionsService {
         data: { status: 'CANCELLED' }
       })
 
-      // Kembalikan stok
+      // Kembalikan stok (tidak mengubah lastSoldAt karena ini bukan penjualan baru)
       for (const item of trx.items) {
         const product = await tx.product.findUnique({ where: { id: item.productId } })
         if (!product) continue
