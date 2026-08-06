@@ -60,6 +60,7 @@ model User {
   transactions Transaction[]
   purchases    Purchase[]
   adjustments  StockMovement[]
+  activityLogs ActivityLog[]   // ← tambahkan ini
 
   @@map("users")
 }
@@ -234,4 +235,26 @@ model StockMovement {
   @@index([productId])
   @@index([createdAt])
   @@map("stock_movements")
+}
+
+// ============================================
+// ACTIVITY LOGS (AUDIT TRAIL APLIKASI)
+// ============================================
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+  @@map("activity_logs")
 }

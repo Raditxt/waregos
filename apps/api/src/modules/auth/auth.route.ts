@@ -1,10 +1,13 @@
 import { FastifyInstance } from 'fastify'
 import { AuthService } from './auth.service'
+import { ActivityService } from './activity.service'
 import { loginSchema, changePasswordSchema, ChangePasswordInput } from './auth.schema'
 import { JwtPayload } from '@waregos/types'
+import { Prisma } from '@prisma/client'
 
 export async function authRoutes(app: FastifyInstance) {
   const authService = new AuthService(app.prisma)
+  const activityService = new ActivityService(app.prisma)
 
   // POST /api/auth/login — dengan rate limit ketat
   app.post('/login', {
@@ -37,6 +40,14 @@ export async function authRoutes(app: FastifyInstance) {
         role: user.role
       }
       const accessToken = app.jwt.sign(payload)
+
+      // Log aktivitas login
+      await activityService.log({
+        userId: user.id,
+        action: 'LOGIN',
+        details: { username: user.username } as Prisma.InputJsonValue,
+        ipAddress: request.ip,
+      })
 
       return reply.code(200).send({
         success: true,
@@ -85,6 +96,14 @@ export async function authRoutes(app: FastifyInstance) {
     try {
       const payload = request.user as JwtPayload
       await authService.changePassword(payload.sub, result.data)
+
+      // Log aktivitas change password
+      await activityService.log({
+        userId: payload.sub,
+        action: 'CHANGE_PASSWORD',
+        ipAddress: request.ip,
+      })
+
       return reply.send({
         success: true,
         message: 'Password berhasil diubah'
