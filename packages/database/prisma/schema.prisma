@@ -57,11 +57,11 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  transactions Transaction[]
-  purchases    Purchase[]
-  adjustments  StockMovement[]
-  activityLogs ActivityLog[]
-
+  transactions   Transaction[]
+  purchases      Purchase[]
+  adjustments    StockMovement[]
+  activityLogs   ActivityLog[]
+  priceHistory   PriceHistory[]          // <-- relasi baru
   @@map("users")
 }
 
@@ -75,7 +75,6 @@ model Category {
   createdAt DateTime  @default(now()) @map("created_at")
 
   products  Product[]
-
   @@map("categories")
 }
 
@@ -85,7 +84,6 @@ model Unit {
   symbol    String    @unique
 
   products  Product[]
-
   @@map("units")
 }
 
@@ -102,7 +100,7 @@ model Product {
   minStock         Int      @default(5) @map("min_stock")
   expiryDate       DateTime? @map("expiry_date")
   expiryAlertDays  Int      @default(7) @map("expiry_alert_days")
-  lastSoldAt       DateTime? @map("last_sold_at")        // <-- field baru
+  lastSoldAt       DateTime? @map("last_sold_at")
   isActive         Boolean  @default(true) @map("is_active")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -112,6 +110,7 @@ model Product {
   transactionItems TransactionItem[]
   stockMovements   StockMovement[]
   purchaseItems    PurchaseItem[]
+  priceHistory     PriceHistory[]  // <-- relasi baru
 
   @@index([barcode])
   @@index([categoryId])
@@ -173,7 +172,6 @@ model Supplier {
   createdAt DateTime   @default(now()) @map("created_at")
 
   purchases Purchase[]
-
   @@map("suppliers")
 }
 
@@ -258,4 +256,25 @@ model ActivityLog {
   @@index([createdAt])
   @@index([action])
   @@map("activity_logs")
+}
+
+// ============================================
+// PRICE HISTORY (HISTORI PERUBAHAN HARGA)
+// ============================================
+
+model PriceHistory {
+  id         String   @id @default(uuid())
+  productId  String   @map("product_id")
+  oldPrice   Decimal  @map("old_price") @db.Decimal(12, 2)
+  newPrice   Decimal  @map("new_price") @db.Decimal(12, 2)
+  changedBy  String   @map("changed_by")
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  product    Product  @relation(fields: [productId], references: [id])
+  user       User     @relation(fields: [changedBy], references: [id])
+
+  @@index([productId])
+  @@index([createdAt])
+  @@map("price_history")
 }

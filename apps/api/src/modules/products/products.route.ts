@@ -45,7 +45,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   )
 
-  // ─── GET /api/products/dead-stock ─────────────────────────── (BARU)
+  // ─── GET /api/products/dead-stock ───────────────────────────
   app.get(
     '/dead-stock',
     { preHandler: [app.authenticate] },
@@ -74,6 +74,37 @@ export async function productsRoutes(app: FastifyInstance) {
         })
       }
       return reply.send({ success: true, data: product })
+    }
+  )
+
+  // ─── GET /api/products/:id/price-history ──────────────────── (Admin only)
+  app.get(
+    '/:id/price-history',
+    { preHandler: [app.adminOnly] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+
+      const history = await app.prisma.priceHistory.findMany({
+        where: { productId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          user: { select: { name: true, username: true } },
+        },
+      })
+
+      return reply.send({
+        success: true,
+        data: history.map((h) => ({
+          id: h.id,
+          oldPrice: Number(h.oldPrice),
+          newPrice: Number(h.newPrice),
+          changedBy: h.user.name,
+          username: h.user.username,
+          reason: h.reason,
+          createdAt: h.createdAt.toISOString(),
+        })),
+      })
     }
   )
 
@@ -133,8 +164,8 @@ export async function productsRoutes(app: FastifyInstance) {
     '/:id',
     { preHandler: [app.adminOnly] },
     async (request, reply) => {
-      const service = new ProductsService(app.prisma, 'ADMIN')
       const { id } = request.params as { id: string }
+      const payload = request.user as JwtPayload
       const result = updateProductSchema.safeParse(request.body)
       if (!result.success) {
         return reply.code(400).send({
@@ -144,10 +175,11 @@ export async function productsRoutes(app: FastifyInstance) {
         })
       }
       try {
-        const product = await service.update(id, result.data)
+        const service = new ProductsService(app.prisma, 'ADMIN')
+        // Panggil update dengan userId untuk pencatatan PriceHistory
+        const product = await service.update(id, result.data, 'ADMIN', payload.sub)
 
         // Log aktivitas
-        const payload = request.user as JwtPayload
         await activityService.log({
           userId: payload.sub,
           action: 'UPDATE_PRODUCT',

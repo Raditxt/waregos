@@ -22,12 +22,22 @@ import {
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
-import { Plus, Search, Pencil, Trash2, Loader2, PackageX } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Loader2, PackageX, History } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
 
 interface Category { id: string; name: string }
 interface Unit { id: string; name: string; symbol: string }
+
+interface PriceHistory {
+  id: string
+  oldPrice: number
+  newPrice: number
+  changedBy: string
+  username: string
+  reason: string | null
+  createdAt: string
+}
 
 const emptyForm = {
   name: '', sku: '', barcode: '',
@@ -69,6 +79,12 @@ export default function ProductsPage() {
     description: string
     onConfirm: () => void
   }>({ open: false, title: '', description: '', onConfirm: () => {} })
+
+  // State untuk Price History
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false)
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([])
+  const [priceHistoryProduct, setPriceHistoryProduct] = useState<string>('')
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const fetchProducts = async (q = '') => {
     try {
@@ -115,6 +131,20 @@ export default function ProductsPage() {
       expiryAlertDays: String(p.expiryAlertDays ?? 7),
     })
     setDialogOpen(true)
+  }
+
+  const openPriceHistory = async (p: ProductDto) => {
+    setPriceHistoryProduct(p.name)
+    setPriceHistoryOpen(true)
+    setLoadingHistory(true)
+    try {
+      const res = await api.get(`/products/${p.id}/price-history`)
+      setPriceHistory(res.data.data)
+    } catch {
+      toast.error('Gagal memuat riwayat harga')
+    } finally {
+      setLoadingHistory(false)
+    }
   }
 
   // Helper function untuk menampilkan confirm dialog
@@ -307,6 +337,9 @@ export default function ProductsPage() {
                         <Button size="icon" variant="ghost" onClick={() => openEdit(p)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
+                        <Button size="icon" variant="ghost" onClick={() => openPriceHistory(p)} title="Riwayat harga beli">
+                          <History className="w-4 h-4" />
+                        </Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(p)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -470,6 +503,51 @@ export default function ProductsPage() {
               {editTarget ? 'Simpan Perubahan' : 'Tambah Produk'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Price History Dialog */}
+      <Dialog open={priceHistoryOpen} onOpenChange={setPriceHistoryOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Riwayat Harga Beli — {priceHistoryProduct}</DialogTitle>
+          </DialogHeader>
+          {loadingHistory ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : priceHistory.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              Belum ada riwayat perubahan harga
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {priceHistory.map((h, i) => (
+                <div key={h.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground line-through">
+                        {formatRupiah(h.oldPrice)}
+                      </span>
+                      <span className="text-xs">→</span>
+                      <span className="font-medium">{formatRupiah(h.newPrice)}</span>
+                      <span className={`text-xs font-medium ${h.newPrice > h.oldPrice ? 'text-red-500' : 'text-green-600'}`}>
+                        ({h.newPrice > h.oldPrice ? '+' : ''}{(((h.newPrice - h.oldPrice) / h.oldPrice) * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      oleh {h.changedBy} · {format(new Date(h.createdAt), 'd MMM yyyy, HH:mm', { locale: id })}
+                    </p>
+                  </div>
+                  {i === 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                      Terbaru
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

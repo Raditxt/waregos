@@ -104,7 +104,11 @@ export class ProductsService {
   }
 
   // ─── UPDATE PRODUCT ─────────────────────────────────────────
-  async update(id: string, input: UpdateProductInput, role?: string) {
+  async update(id: string, input: UpdateProductInput, role?: string, userId?: string) {
+    // Ambil data produk sebelum diupdate
+    const existing = await this.prisma.product.findUnique({ where: { id } })
+    if (!existing) throw new Error('Produk tidak ditemukan')
+
     const data: any = {}
 
     if (input.name !== undefined) data.name = input.name
@@ -129,6 +133,23 @@ export class ProductsService {
         unit: { select: { id: true, name: true, symbol: true } },
       },
     })
+
+    // Catat price history kalau harga beli berubah
+    if (
+      userId &&
+      input.buyPrice !== undefined &&
+      Number(input.buyPrice) !== Number(existing.buyPrice)
+    ) {
+      await this.prisma.priceHistory.create({
+        data: {
+          productId: id,
+          oldPrice: existing.buyPrice,
+          newPrice: input.buyPrice,
+          changedBy: userId,
+        },
+      })
+    }
+
     return this.formatProduct(product, role ?? this.role)
   }
 
@@ -196,10 +217,10 @@ export class ProductsService {
           status,
         }
       })
-      .filter((p) => p.status !== 'ok') // hanya tampilkan yang expired atau expiring_soon
+      .filter((p) => p.status !== 'ok')
   }
 
-  // ─── DEAD STOCK REPORT (baru) ──────────────────────────────
+  // ─── DEAD STOCK REPORT ─────────────────────────────────────
   async getDeadStock(dayThreshold = 30) {
     const thresholdDate = new Date()
     thresholdDate.setDate(thresholdDate.getDate() - dayThreshold)
@@ -210,18 +231,18 @@ export class ProductsService {
         stock: { gt: 0 },
         OR: [
           { lastSoldAt: null },
-          { lastSoldAt: { lt: thresholdDate } }
-        ]
+          { lastSoldAt: { lt: thresholdDate } },
+        ],
       },
       include: {
         unit: { select: { symbol: true } },
         category: { select: { name: true } },
       },
-      orderBy: { lastSoldAt: 'asc' }
+      orderBy: { lastSoldAt: 'asc' },
     })
 
     const now = new Date()
-    return products.map(p => {
+    return products.map((p) => {
       const daysSinceLastSold = p.lastSoldAt
         ? Math.floor((now.getTime() - p.lastSoldAt.getTime()) / (1000 * 60 * 60 * 24))
         : null
@@ -236,9 +257,10 @@ export class ProductsService {
         stockValue: Number(p.buyPrice) * p.stock,
         lastSoldAt: p.lastSoldAt?.toISOString() ?? null,
         daysSinceLastSold,
-        status: daysSinceLastSold === null
-          ? 'never_sold'
-          : daysSinceLastSold >= 60
+        status:
+          daysSinceLastSold === null
+            ? 'never_sold'
+            : daysSinceLastSold >= 60
             ? 'critical'
             : 'warning',
       }
