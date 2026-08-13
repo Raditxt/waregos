@@ -33,6 +33,7 @@ import { transactionsRoutes } from './modules/transactions/transactions.route'
 import { purchasesRoutes } from './modules/stock/purchases.route'
 import { reportsRoutes } from './modules/reports/reports.route'
 import { activityRoutes } from './modules/auth/activity.route'
+import { debtRoutes } from './modules/auth/debt.route'
 
 
 // ============================================
@@ -75,6 +76,7 @@ const start = async () => {
     await app.register(purchasesRoutes, { prefix: '/api/purchases' })
     await app.register(reportsRoutes, { prefix: '/api/reports' })
     await app.register(activityRoutes, { prefix: '/api/audit' })
+    await app.register(debtRoutes, { prefix: '/api/debts' })
 
     // ============================================
     // HEALTH CHECK — sekarang cek koneksi DB

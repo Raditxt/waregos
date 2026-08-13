@@ -256,19 +256,15 @@ export default function ReportsPage() {
         <TabsContent value="monthly" className="space-y-4 mt-4">
           <div className="flex items-center gap-3">
             <Input
-              type="number"
-              className="w-28"
-              placeholder="Tahun"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-            />
-            <Input
-              type="number"
-              className="w-20"
-              placeholder="Bulan"
-              min={1} max={12}
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              type="month"
+              className="w-48"
+              value={`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`}
+              max={format(new Date(), 'yyyy-MM')}
+              onChange={(e) => {
+                const [year, month] = e.target.value.split('-')
+                setSelectedYear(Number(year))
+                setSelectedMonth(Number(month))
+              }}
             />
             <Button
               onClick={() => fetchMonthly(selectedYear, selectedMonth)}

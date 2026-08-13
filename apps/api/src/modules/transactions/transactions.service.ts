@@ -34,11 +34,17 @@ export class TransactionsService {
         return sum + item.sellPrice * item.quantity
       }, 0)
 
-      if (input.paidAmount < totalAmount) {
+      // Validasi pembayaran — skip untuk DEBT
+      if (input.paymentMethod !== 'DEBT' && input.paidAmount < totalAmount) {
         throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`)
       }
 
-      const changeAmount = input.paidAmount - totalAmount
+      // Validasi DEBT — wajib ada customerName
+      if (input.paymentMethod === 'DEBT' && !input.customerName) {
+        throw new Error('Nama pelanggan wajib diisi untuk transaksi hutang')
+      }
+
+      const changeAmount = input.paymentMethod === 'DEBT' ? 0 : input.paidAmount - totalAmount
 
       // 4. Buat transaksi
       const trx = await tx.transaction.create({
@@ -95,6 +101,25 @@ export class TransactionsService {
             stockAfter: newStock,
             transactionId: trx.id,
             userId,
+          }
+        })
+      }
+
+      // Catat debt transaction kalau bayar hutang
+      if (input.paymentMethod === 'DEBT' && input.customerName) {
+        await tx.debtTransaction.create({
+          data: {
+            customerName: input.customerName,
+            transactionId: trx.id,
+            type: 'DEBT',
+            amount: totalAmount,
+            items: trx.items.map((item: any) => ({
+              name: item.product?.name ?? item.productId,
+              quantity: item.quantity,
+              price: Number(item.sellPrice),
+            })) as any,
+            notes: input.notes ?? 'Hutang via POS',
+            createdBy: userId,
           }
         })
       }

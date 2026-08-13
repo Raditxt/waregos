@@ -55,11 +55,11 @@ export default function ClosingPage() {
 
   useEffect(() => {
     const init = async () => {
-      await fetchClosing(today)
+      await fetchClosing(selectedDate)
     }
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [selectedDate])
 
   const formatRupiah = (n: number) =>
     new Intl.NumberFormat('id-ID', {
@@ -86,9 +86,6 @@ export default function ClosingPage() {
             max={today}
             onChange={(e) => setSelectedDate(e.target.value)}
           />
-          <Button onClick={() => fetchClosing(selectedDate)} disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tampilkan'}
-          </Button>
         </div>
       </div>
 

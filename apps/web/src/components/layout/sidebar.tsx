@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Users,
   BookCheck,
-  ShieldCheck, // <-- ditambahkan
+  ShieldCheck,
+  CreditCard 
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,9 +28,10 @@ const navItems = [
   { href: '/products', label: 'Produk', icon: Package, adminOnly: false },
   { href: '/purchases', label: 'Pembelian', icon: ShoppingBag, adminOnly: true },
   { href: '/closing', label: 'Closing', icon: BookCheck, adminOnly: false },
+  { href: '/debts', label: 'Hutang', icon: CreditCard, adminOnly: true },
   { href: '/reports', label: 'Laporan', icon: TrendingUp, adminOnly: true },
   { href: '/users', label: 'Users', icon: Users, adminOnly: true },
-  { href: '/audit', label: 'Audit Log', icon: ShieldCheck, adminOnly: true }, // <-- ditambahkan
+  { href: '/audit', label: 'Audit Log', icon: ShieldCheck, adminOnly: true }, 
 ]
 
 export function Sidebar() {

@@ -8,8 +8,9 @@ export const transactionItemSchema = z.object({
 
 export const createTransactionSchema = z.object({
   items: z.array(transactionItemSchema).min(1, { message: 'Transaksi harus memiliki minimal 1 item' }),
-  paymentMethod: z.enum(['CASH', 'TRANSFER', 'QRIS'], { message: 'Metode pembayaran tidak valid' }),
-  paidAmount: z.number().positive({ message: 'Jumlah bayar harus lebih dari 0' }),
+  paymentMethod: z.enum(['CASH', 'TRANSFER', 'QRIS', 'DEBT'], { message: 'Metode pembayaran tidak valid' }),
+  paidAmount: z.number().min(0, { message: 'Jumlah bayar tidak boleh negatif' }),
+  customerName: z.string().optional(),
   notes: z.string().optional(),
 })
 

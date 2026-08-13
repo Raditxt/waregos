@@ -42,6 +42,7 @@ interface Receipt {
   paidAmount: number
   changeAmount: number
   paymentMethod: string
+  customerName?: string
   createdAt: string
 }
 
@@ -49,7 +50,9 @@ export default function PosPage() {
   const [products, setProducts] = useState<ProductDto[]>([])
   const [search, setSearch] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'QRIS'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'QRIS' | 'DEBT'>('CASH')
+  const [customerName, setCustomerName] = useState('')
+  const [customerSuggestions, setCustomerSuggestions] = useState<string[]>([])
   const [paidAmount, setPaidAmount] = useState('')
   const [loading, setLoading] = useState(false)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
@@ -80,6 +83,23 @@ export default function PosPage() {
     }
     fetchProducts()
   }, [search])
+
+  // Fetch customer suggestions for DEBT
+  useEffect(() => {
+    if (paymentMethod !== 'DEBT' || customerName.length < 2) {
+      const timer = setTimeout(() => setCustomerSuggestions([]), 0)
+      return () => clearTimeout(timer)
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await api.get('/debts/search', { params: { q: customerName } })
+        setCustomerSuggestions(res.data.data)
+      } catch {
+        setCustomerSuggestions([])
+      }
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [customerName, paymentMethod])
 
   const addToCart = (product: ProductDto) => {
     if (product.stock <= 0) {
@@ -132,7 +152,6 @@ export default function PosPage() {
     setCart((prev) => prev.filter((i) => i.productId !== productId))
   }
 
-  // Ganti clearCart dengan confirm dialog
   const clearCart = () => {
     if (cart.length === 0) return
     setConfirmDialog({
@@ -140,6 +159,7 @@ export default function PosPage() {
       onConfirm: () => {
         setCart([])
         setPaidAmount('')
+        setCustomerName('')
         setConfirmDialog(prev => ({ ...prev, open: false }))
       }
     })
@@ -157,6 +177,10 @@ export default function PosPage() {
       toast.error('Uang bayar kurang dari total')
       return
     }
+    if (paymentMethod === 'DEBT' && !customerName.trim()) {
+      toast.error('Nama pelanggan wajib diisi untuk transaksi hutang')
+      return
+    }
 
     setLoading(true)
     try {
@@ -167,7 +191,8 @@ export default function PosPage() {
           sellPrice: i.sellPrice,
         })),
         paymentMethod,
-        paidAmount: paymentMethod === 'CASH' ? Number(paidAmount) : totalAmount,
+        paidAmount: paymentMethod === 'CASH' ? Number(paidAmount) : 0,
+        customerName: paymentMethod === 'DEBT' ? customerName.trim() : undefined,
         notes: undefined,
       })
 
@@ -179,11 +204,13 @@ export default function PosPage() {
         paidAmount: trx.paidAmount,
         changeAmount: trx.changeAmount,
         paymentMethod: trx.paymentMethod,
+        customerName: paymentMethod === 'DEBT' ? customerName : undefined,
         createdAt: trx.createdAt,
       })
       setReceiptOpen(true)
       setCart([])
       setPaidAmount('')
+      setCustomerName('')
       toast.success('Transaksi berhasil!')
       setLastSaved(new Date().toISOString())
     } catch (error) {
@@ -351,11 +378,41 @@ export default function PosPage() {
                     <SelectItem value="CASH">💵 Tunai</SelectItem>
                     <SelectItem value="TRANSFER">🏦 Transfer</SelectItem>
                     <SelectItem value="QRIS">📱 QRIS</SelectItem>
+                    <SelectItem value="DEBT">📋 Hutang</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Cash Payment */}
+              {/* Customer name untuk DEBT */}
+              {paymentMethod === 'DEBT' && (
+                <div className="space-y-2 relative">
+                  <p className="text-sm font-medium">Nama Pelanggan *</p>
+                  <Input
+                    placeholder="Bu Sari, Pak Budi..."
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    autoComplete="off"
+                  />
+                  {customerSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full bg-card border rounded-lg shadow-lg">
+                      {customerSuggestions.map((name) => (
+                        <button
+                          key={name}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                          onClick={() => {
+                            setCustomerName(name)
+                            setCustomerSuggestions([])
+                          }}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Cash Payment — hanya untuk CASH */}
               {paymentMethod === 'CASH' && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Uang Diterima</p>
@@ -392,7 +449,15 @@ export default function PosPage() {
                 </div>
               )}
 
-              {/* Change */}
+              {/* DEBT info */}
+              {paymentMethod === 'DEBT' && (
+                <div className="rounded-lg p-3 bg-orange-50 dark:bg-orange-950 text-center">
+                  <p className="text-xs text-muted-foreground">Total akan dicatat sebagai hutang</p>
+                  <p className="text-lg font-bold text-orange-600">{formatRupiah(totalAmount)}</p>
+                </div>
+              )}
+
+              {/* Change — hanya untuk CASH */}
               {paymentMethod === 'CASH' && paidAmount && (
                 <div className={`rounded-lg p-3 text-center ${changeAmount >= 0 ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'}`}>
                   <p className="text-xs text-muted-foreground">Kembalian</p>
@@ -463,6 +528,12 @@ export default function PosPage() {
                   <div className="flex justify-between text-green-600 font-bold">
                     <span>Kembalian</span>
                     <span>{formatRupiah(receipt.changeAmount)}</span>
+                  </div>
+                )}
+                {receipt.paymentMethod === 'DEBT' && (
+                  <div className="flex justify-between text-orange-600 font-bold">
+                    <span>Hutang atas nama</span>
+                    <span>{receipt.customerName}</span>
                   </div>
                 )}
               </div>

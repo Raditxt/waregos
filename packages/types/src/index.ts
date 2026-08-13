@@ -82,8 +82,9 @@ export interface TransactionItemRequest {
 
 export interface CreateTransactionRequest {
   items: TransactionItemRequest[]
-  paymentMethod: 'CASH' | 'TRANSFER' | 'QRIS'
+  paymentMethod: 'CASH' | 'TRANSFER' | 'QRIS' | 'DEBT'
   paidAmount: number
+  customerName?: string
   notes?: string
 }
 

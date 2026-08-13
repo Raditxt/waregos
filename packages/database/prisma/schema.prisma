@@ -34,6 +34,7 @@ enum PaymentMethod {
   CASH
   TRANSFER
   QRIS
+  DEBT
 }
 
 enum PurchaseStatus {
@@ -57,11 +58,13 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  transactions   Transaction[]
-  purchases      Purchase[]
-  adjustments    StockMovement[]
-  activityLogs   ActivityLog[]
-  priceHistory   PriceHistory[]          // <-- relasi baru
+  transactions    Transaction[]
+  purchases       Purchase[]
+  adjustments     StockMovement[]
+  activityLogs    ActivityLog[]
+  priceHistory    PriceHistory[]
+  debtTransactions DebtTransaction[]
+
   @@map("users")
 }
 
@@ -110,7 +113,7 @@ model Product {
   transactionItems TransactionItem[]
   stockMovements   StockMovement[]
   purchaseItems    PurchaseItem[]
-  priceHistory     PriceHistory[]  // <-- relasi baru
+  priceHistory     PriceHistory[]
 
   @@index([barcode])
   @@index([categoryId])
@@ -134,9 +137,10 @@ model Transaction {
   notes         String?
   createdAt     DateTime          @default(now()) @map("created_at")
 
-  user          User              @relation(fields: [userId], references: [id])
-  items         TransactionItem[]
-  stockMovements StockMovement[]
+  user            User              @relation(fields: [userId], references: [id])
+  items           TransactionItem[]
+  stockMovements  StockMovement[]
+  debtTransactions DebtTransaction[]
 
   @@index([createdAt])
   @@index([userId])
@@ -277,4 +281,27 @@ model PriceHistory {
   @@index([productId])
   @@index([createdAt])
   @@map("price_history")
+}
+
+// ============================================
+// DEBT TRANSACTIONS (PIUTANG PELANGGAN)
+// ============================================
+
+model DebtTransaction {
+  id              String       @id @default(uuid())
+  customerName    String       @map("customer_name")
+  transactionId   String?      @map("transaction_id")
+  type            String       // DEBT | PAYMENT
+  amount          Decimal      @db.Decimal(12, 2)
+  items           Json?
+  notes           String?
+  createdBy       String       @map("created_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+  user            User         @relation(fields: [createdBy], references: [id])
+
+  @@index([customerName])
+  @@index([createdAt])
+  @@map("debt_transactions")
 }
