@@ -209,11 +209,12 @@ export async function reportsRoutes(app: FastifyInstance) {
       }
     })
 
-    // Breakdown per metode bayar
+    // ================== TAMBAHAN DEBT ==================
     const byMethod = {
       CASH: { count: 0, total: 0 },
       TRANSFER: { count: 0, total: 0 },
       QRIS: { count: 0, total: 0 },
+      DEBT: { count: 0, total: 0 }, // ← Ditambahkan
     }
 
     let totalRevenue = 0
@@ -221,9 +222,12 @@ export async function reportsRoutes(app: FastifyInstance) {
     let totalItems = 0
 
     for (const trx of transactions) {
-      const method = trx.paymentMethod as 'CASH' | 'TRANSFER' | 'QRIS'
-      byMethod[method].count += 1
-      byMethod[method].total += Number(trx.totalAmount)
+      const method = trx.paymentMethod as keyof typeof byMethod
+      // Pastikan method yang tidak dikenal tidak menyebabkan error
+      if (byMethod[method]) {
+        byMethod[method].count += 1
+        byMethod[method].total += Number(trx.totalAmount)
+      }
       totalRevenue += Number(trx.totalAmount)
       totalItems += trx.items.reduce((s, i) => s + i.quantity, 0)
       totalProfit += trx.items.reduce((s, i) => {

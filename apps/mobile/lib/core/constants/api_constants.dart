@@ -1,7 +1,7 @@
 class ApiConstants {
-  // Ganti IP ini dengan IP laptop kamu saat development
-  // Cek dengan: ipconfig → IPv4 Address di WiFi adapter
-  static const String baseUrl = 'http://192.168.110.88:3001/api';
+  // Default IP — bisa diubah dari settings di dalam app
+  static const String defaultBaseUrl = 'http://192.168.1.10:3001/api';
+  static const String settingsKey = 'waregos_server_url';
   
   // Auth
   static const String login = '/auth/login';

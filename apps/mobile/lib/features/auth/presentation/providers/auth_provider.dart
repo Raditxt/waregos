@@ -84,8 +84,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // === UPDATE DI SINI ===
   Future<void> logout() async {
     await SecureStorage.clearAll();
+    ApiClient.resetInstance(); // Reset instance Dio untuk membersihkan state client
     state = const AuthState();
   }
 }
