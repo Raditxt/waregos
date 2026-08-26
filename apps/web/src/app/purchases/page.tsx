@@ -199,7 +199,12 @@ export default function PurchasesPage() {
       ) : purchases.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <ShoppingBag className="w-12 h-12" />
-          <p>Belum ada data pembelian</p>
+          <p className="font-medium">Belum ada data pembelian</p>
+          <p className="text-sm text-center max-w-sm">
+            Catat setiap pembelian atau restok barang dengan klik 
+            <span className="font-medium text-foreground"> Catat Pembelian</span>.
+            Stok akan otomatis bertambah setelah pembelian dicatat.
+          </p>
         </div>
       ) : (
         <div className="rounded-lg border bg-card">

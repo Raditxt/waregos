@@ -176,7 +176,13 @@ export default function DebtsPage() {
       ) : debts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <CreditCard className="w-12 h-12" />
-          <p>Tidak ada hutang outstanding</p>
+          <p className="font-medium">Tidak ada hutang outstanding</p>
+          <p className="text-sm text-center max-w-sm">
+            Catat hutang pelanggan dengan klik 
+            <span className="font-medium text-foreground"> Catat Hutang </span>
+            atau langsung dari halaman Kasir dengan metode bayar 
+            <span className="font-medium text-foreground"> Hutang</span>.
+          </p>
         </div>
       ) : (
         <div className="grid gap-3">

@@ -2,7 +2,7 @@
 # Jalankan setiap Senin pagi
 
 $backupDir = "D:\Waregos-Backup"
-$externalDir = "E:\Waregos-Backup-External" # Ganti E: dengan drive eksternal kamu
+$externalDir = "G:\My Drive\Waregos-Backup-External" # Ganti E: dengan drive eksternal kamu
 
 Write-Host "🔄 Weekly backup started..." -ForegroundColor Cyan
 

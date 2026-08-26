@@ -265,7 +265,12 @@ export default function ProductsPage() {
       ) : products.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
           <PackageX className="w-12 h-12" />
-          <p>Belum ada produk</p>
+          <p className="font-medium">Belum ada produk</p>
+          <p className="text-sm text-center max-w-sm">
+            Mulai dengan menambahkan produk pertama. Klik tombol 
+            <span className="font-medium text-foreground"> + Tambah Produk </span>
+            di pojok kanan atas.
+          </p>
         </div>
       ) : (
         <div className="rounded-lg border bg-card">
