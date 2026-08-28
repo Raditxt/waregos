@@ -1,66 +1,46 @@
-// ============================================
-// LOAD ENV FIRST — agar variabel environment terbaca
-// ============================================
 import 'dotenv/config'
 
-// ============================================
-// ENVIRONMENT VALIDATION — Fail fast on start
-// ============================================
+// Environment validation
 const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL']
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`❌ FATAL: Environment variable "${envVar}" is required but not set.`)
-    console.error(`   Please check your apps/api/.env file.`)
     process.exit(1)
   }
 }
 
-// ============================================
-// IMPORTS
-// ============================================
 import Fastify from 'fastify'
-
+import rateLimit from '@fastify/rate-limit'
 import prismaPlugin from './plugins/prisma'
 import jwtPlugin from './plugins/jwt'
 import corsPlugin from './plugins/cors'
-import rateLimit from '@fastify/rate-limit'
+import { globalErrorHandler } from './shared/error-handler'
+import { logger } from './shared/logger'
 
+// Routes
 import { authRoutes } from './modules/auth/auth.route'
-import { usersRoutes } from './modules/auth/users.route'
+import { usersRoutes } from './modules/users/users.route'
 import { productsRoutes } from './modules/products/products.route'
 import { catalogRoutes } from './modules/products/catalog.route'
 import { transactionsRoutes } from './modules/transactions/transactions.route'
 import { purchasesRoutes } from './modules/stock/purchases.route'
 import { reportsRoutes } from './modules/reports/reports.route'
-import { activityRoutes } from './modules/auth/activity.route'
-import { debtRoutes } from './modules/auth/debt.route'
+import { debtRoutes } from './modules/debt/debt.route'
+import { activityRoutes } from './modules/audit/audit.route'
 
-
-// ============================================
-// APP INSTANCE
-// ============================================
 const app = Fastify({
-  logger: {
-    transport: {
-      target: 'pino-pretty',
-      options: {
-        translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname'
-      }
-    }
-  }
+  logger: false, // Pakai custom logger
 })
 
-// ============================================
-// START SERVER
-// ============================================
 const start = async () => {
   try {
+    // Global error handler
+    app.setErrorHandler(globalErrorHandler)
+
     // Plugins
     await app.register(prismaPlugin)
     await app.register(jwtPlugin)
     await app.register(corsPlugin)
-    // Rate limit global (tidak aktif secara global, hanya untuk route yang dikonfigurasi)
     await app.register(rateLimit, {
       global: false,
       max: 100,
@@ -75,12 +55,10 @@ const start = async () => {
     await app.register(transactionsRoutes, { prefix: '/api/transactions' })
     await app.register(purchasesRoutes, { prefix: '/api/purchases' })
     await app.register(reportsRoutes, { prefix: '/api/reports' })
-    await app.register(activityRoutes, { prefix: '/api/audit' })
     await app.register(debtRoutes, { prefix: '/api/debts' })
+    await app.register(activityRoutes, { prefix: '/api/audit' })
 
-    // ============================================
-    // HEALTH CHECK — sekarang cek koneksi DB
-    // ============================================
+    // Health check
     app.get('/health', async (request, reply) => {
       try {
         await app.prisma.$queryRaw`SELECT 1`
@@ -102,12 +80,13 @@ const start = async () => {
       }
     })
 
-    await app.listen({
-      port: Number(process.env.API_PORT ?? 3001),
-      host: process.env.API_HOST ?? '0.0.0.0'
-    })
+    const port = Number(process.env.API_PORT ?? 3001)
+    const host = process.env.API_HOST ?? '0.0.0.0'
+
+    await app.listen({ port, host })
+    logger.info(`🚀 Waregos API running at http://${host}:${port}`, 'Bootstrap')
   } catch (err) {
-    app.log.error(err)
+    logger.error('Failed to start server', 'Bootstrap', err)
     process.exit(1)
   }
 }

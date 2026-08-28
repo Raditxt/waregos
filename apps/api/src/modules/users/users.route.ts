@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { ok, validationError, badRequest, notFound } from '../../shared/response'
 
 const updateUserSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -25,7 +26,7 @@ export async function usersRoutes(app: FastifyInstance) {
         updatedAt: true,
       }
     })
-    return reply.send({ success: true, data: users })
+    return reply.send(ok(users))
   })
 
   // PATCH /api/users/:id — update user (admin only)
@@ -36,11 +37,7 @@ export async function usersRoutes(app: FastifyInstance) {
     const result = updateUserSchema.safeParse(request.body)
 
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
 
     try {
@@ -56,13 +53,9 @@ export async function usersRoutes(app: FastifyInstance) {
           updatedAt: true,
         }
       })
-      return reply.send({ success: true, data: user })
+      return reply.send(ok(user))
     } catch {
-      return reply.code(404).send({
-        success: false,
-        error: 'NOT_FOUND',
-        message: 'User tidak ditemukan'
-      })
+      return reply.code(404).send(notFound('User'))
     }
   })
 
@@ -74,11 +67,7 @@ export async function usersRoutes(app: FastifyInstance) {
     const { newPassword } = request.body as { newPassword: string }
 
     if (!newPassword || newPassword.length < 6) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: 'Password baru minimal 6 karakter'
-      })
+      return reply.code(400).send(validationError('Password baru minimal 6 karakter'))
     }
 
     try {
@@ -87,16 +76,9 @@ export async function usersRoutes(app: FastifyInstance) {
         where: { id },
         data: { passwordHash: hash }
       })
-      return reply.send({
-        success: true,
-        message: 'Password berhasil direset'
-      })
+      return reply.send(ok(null, 'Password berhasil direset'))
     } catch {
-      return reply.code(404).send({
-        success: false,
-        error: 'NOT_FOUND',
-        message: 'User tidak ditemukan'
-      })
+      return reply.code(404).send(notFound('User'))
     }
   })
 
@@ -113,11 +95,7 @@ export async function usersRoutes(app: FastifyInstance) {
 
     const result = createSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
 
     try {
@@ -138,13 +116,9 @@ export async function usersRoutes(app: FastifyInstance) {
           createdAt: true,
         }
       })
-      return reply.code(201).send({ success: true, data: user })
+      return reply.code(201).send(ok(user))
     } catch {
-      return reply.code(409).send({
-        success: false,
-        error: 'CONFLICT',
-        message: 'Username sudah digunakan'
-      })
+      return reply.code(409).send(badRequest('Username sudah digunakan', 'CONFLICT'))
     }
   })
 }

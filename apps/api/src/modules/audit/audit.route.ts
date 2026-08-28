@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
-import { ActivityService } from './activity.service'
+import { ActivityService } from './audit.service'
+import { ok } from '../../shared/response'
 
 const ACTION_LABELS: Record<string, string> = {
   LOGIN: 'Login',
@@ -42,16 +43,13 @@ export async function activityRoutes(app: FastifyInstance) {
       dateTo,
     })
 
-    return reply.send({ success: true, ...result })
+    return reply.send({ success: true, data: result.data, meta: result.meta })
   })
 
   // GET /api/audit/actions — list semua action types
   app.get('/actions', {
     preHandler: [app.adminOnly]
   }, async (request, reply) => {
-    return reply.send({
-      success: true,
-      data: Object.entries(ACTION_LABELS).map(([value, label]) => ({ value, label }))
-    })
+    return reply.send(ok(Object.entries(ACTION_LABELS).map(([value, label]) => ({ value, label }))))
   })
 }

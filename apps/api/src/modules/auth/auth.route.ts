@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { AuthService } from './auth.service'
-import { ActivityService } from './activity.service'
+import { ActivityService } from '../audit/audit.service'
 import { loginSchema, changePasswordSchema, ChangePasswordInput } from './auth.schema'
 import { JwtPayload } from '@waregos/types'
 import { Prisma } from '@prisma/client'
+import { ok, validationError, badRequest, notFound } from '../../shared/response'
 
 export async function authRoutes(app: FastifyInstance) {
   const authService = new AuthService(app.prisma)
@@ -25,11 +26,7 @@ export async function authRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = loginSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
 
     try {
@@ -49,16 +46,9 @@ export async function authRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.code(200).send({
-        success: true,
-        data: { accessToken, user }
-      })
+      return reply.code(200).send(ok({ accessToken, user }))
     } catch (err: any) {
-      return reply.code(401).send({
-        success: false,
-        error: 'INVALID_CREDENTIALS',
-        message: err.message
-      })
+      return reply.code(401).send(badRequest(err.message, 'INVALID_CREDENTIALS'))
     }
   })
 
@@ -70,14 +60,10 @@ export async function authRoutes(app: FastifyInstance) {
     const user = await authService.getById(payload.sub)
 
     if (!user) {
-      return reply.code(404).send({
-        success: false,
-        error: 'NOT_FOUND',
-        message: 'User tidak ditemukan'
-      })
+      return reply.code(404).send(notFound('User'))
     }
 
-    return reply.send({ success: true, data: user })
+    return reply.send(ok(user))
   })
 
   // PATCH /api/auth/change-password
@@ -86,11 +72,7 @@ export async function authRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = changePasswordSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
 
     try {
@@ -104,17 +86,10 @@ export async function authRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.send({
-        success: true,
-        message: 'Password berhasil diubah'
-      })
+      return reply.send(ok(null, 'Password berhasil diubah'))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal mengubah password'
-      return reply.code(400).send({
-        success: false,
-        error: 'CHANGE_PASSWORD_FAILED',
-        message
-      })
+      return reply.code(400).send(badRequest(message, 'CHANGE_PASSWORD_FAILED'))
     }
   })
 
@@ -126,26 +101,15 @@ export async function authRoutes(app: FastifyInstance) {
     const { newPassword } = request.body as { newPassword: string }
 
     if (!newPassword || newPassword.length < 6) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: 'Password baru minimal 6 karakter'
-      })
+      return reply.code(400).send(validationError('Password baru minimal 6 karakter'))
     }
 
     try {
       await authService.adminResetPassword(id, newPassword)
-      return reply.send({
-        success: true,
-        message: 'Password berhasil direset'
-      })
+      return reply.send(ok(null, 'Password berhasil direset'))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal reset password'
-      return reply.code(400).send({
-        success: false,
-        error: 'RESET_FAILED',
-        message
-      })
+      return reply.code(400).send(badRequest(message, 'RESET_FAILED'))
     }
   })
 }

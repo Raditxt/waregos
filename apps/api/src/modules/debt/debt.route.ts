@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { DebtService } from './debt.service'
 import { JwtPayload } from '@waregos/types'
 import { z } from 'zod'
+import { ok, validationError, badRequest } from '../../shared/response'
 
 const addDebtSchema = z.object({
   customerName: z.string().min(1, { message: 'Nama pelanggan wajib diisi' }),
@@ -28,7 +29,7 @@ export async function debtRoutes(app: FastifyInstance) {
     preHandler: [app.authenticate]
   }, async (request, reply) => {
     const data = await service.getSummary()
-    return reply.send({ success: true, data })
+    return reply.send(ok(data))
   })
 
   // GET /api/debts/search?q=sari — autocomplete nama
@@ -37,7 +38,7 @@ export async function debtRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { q } = request.query as { q?: string }
     const data = await service.searchCustomers(q ?? '')
-    return reply.send({ success: true, data })
+    return reply.send(ok(data))
   })
 
   // GET /api/debts/:customerName — riwayat hutang per pelanggan
@@ -46,7 +47,7 @@ export async function debtRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const { customerName } = request.params as { customerName: string }
     const data = await service.getHistory(decodeURIComponent(customerName))
-    return reply.send({ success: true, data })
+    return reply.send(ok(data))
   })
 
   // POST /api/debts — catat hutang baru
@@ -55,11 +56,7 @@ export async function debtRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = addDebtSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
     try {
       const payload = request.user as JwtPayload
@@ -67,13 +64,10 @@ export async function debtRoutes(app: FastifyInstance) {
         ...result.data,
         createdBy: payload.sub,
       })
-      return reply.code(201).send({
-        success: true,
-        message: 'Hutang berhasil dicatat'
-      })
+      return reply.code(201).send(ok(null, 'Hutang berhasil dicatat'))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal mencatat hutang'
-      return reply.code(400).send({ success: false, error: 'DEBT_FAILED', message })
+      return reply.code(400).send(badRequest(message, 'DEBT_FAILED'))
     }
   })
 
@@ -83,11 +77,7 @@ export async function debtRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = paymentSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
     try {
       const payload = request.user as JwtPayload
@@ -95,13 +85,10 @@ export async function debtRoutes(app: FastifyInstance) {
         ...result.data,
         createdBy: payload.sub,
       })
-      return reply.send({
-        success: true,
-        message: 'Pembayaran hutang berhasil dicatat'
-      })
+      return reply.send(ok(null, 'Pembayaran hutang berhasil dicatat'))
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal mencatat pembayaran'
-      return reply.code(400).send({ success: false, error: 'PAYMENT_FAILED', message })
+      return reply.code(400).send(badRequest(message, 'PAYMENT_FAILED'))
     }
   })
 }

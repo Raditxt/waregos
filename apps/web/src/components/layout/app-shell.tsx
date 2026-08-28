@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
 import { Sidebar } from './sidebar'
-import { api } from '@/lib/api'
 
 const ADMIN_ONLY_ROUTES = ['/users', '/purchases', '/reports', '/audit']
 
@@ -38,7 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        await api.get('/health'.replace('/api', ''))
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:3001'
+        const response = await fetch(`${baseUrl}/health`)
+        if (!response.ok) throw new Error('Server error')
         const wasOffline = sessionStorage.getItem('server_was_offline')
         if (wasOffline) {
           setShowBanner(true)

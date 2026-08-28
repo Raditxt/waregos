@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { TransactionsService } from './transactions.service'
-import { ActivityService } from '../auth/activity.service'
+import { ActivityService } from '../audit/audit.service'
 import { createTransactionSchema, transactionQuerySchema } from './transactions.schema'
 import { JwtPayload } from '@waregos/types'
 import { Prisma } from '@prisma/client'
+import { ok, validationError, badRequest, notFound } from '../../shared/response'
 
 export async function transactionsRoutes(app: FastifyInstance) {
   const service = new TransactionsService(app.prisma)
@@ -15,7 +16,7 @@ export async function transactionsRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const query = transactionQuerySchema.parse(request.query)
     const result = await service.findAll(query)
-    return reply.send({ success: true, ...result })
+    return reply.send({ success: true, data: result.data, meta: result.meta })
   })
 
   // GET /api/transactions/:id
@@ -25,9 +26,9 @@ export async function transactionsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const trx = await service.findById(id)
     if (!trx) {
-      return reply.code(404).send({ success: false, error: 'NOT_FOUND', message: 'Transaksi tidak ditemukan' })
+      return reply.code(404).send(notFound('Transaksi'))
     }
-    return reply.send({ success: true, data: trx })
+    return reply.send(ok(trx))
   })
 
   // POST /api/transactions
@@ -36,11 +37,7 @@ export async function transactionsRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = createTransactionSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
 
     try {
@@ -57,13 +54,9 @@ export async function transactionsRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.code(201).send({ success: true, data: trx })
+      return reply.code(201).send(ok(trx))
     } catch (err: any) {
-      return reply.code(400).send({
-        success: false,
-        error: 'TRANSACTION_FAILED',
-        message: err.message
-      })
+      return reply.code(400).send(badRequest(err.message, 'TRANSACTION_FAILED'))
     }
   })
 
@@ -85,13 +78,9 @@ export async function transactionsRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.send({ success: true, message: 'Transaksi berhasil dibatalkan' })
+      return reply.send(ok(null, 'Transaksi berhasil dibatalkan'))
     } catch (err: any) {
-      return reply.code(400).send({
-        success: false,
-        error: 'CANCEL_FAILED',
-        message: err.message
-      })
+      return reply.code(400).send(badRequest(err.message, 'CANCEL_FAILED'))
     }
   })
 }

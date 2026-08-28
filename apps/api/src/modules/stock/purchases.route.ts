@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { PurchasesService } from './purchases.service'
-import { ActivityService } from '../auth/activity.service'
+import { ActivityService } from '../audit/audit.service'
 import { createPurchaseSchema, purchaseQuerySchema } from './purchases.schema'
 import { JwtPayload } from '@waregos/types'
 import { Prisma } from '@prisma/client'
+import { ok, validationError, badRequest, notFound } from '../../shared/response'
 
 export async function purchasesRoutes(app: FastifyInstance) {
   const service = new PurchasesService(app.prisma)
@@ -15,7 +16,7 @@ export async function purchasesRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const query = purchaseQuerySchema.parse(request.query)
     const result = await service.findAll(query)
-    return reply.send({ success: true, ...result })
+    return reply.send({ success: true, data: result.data, meta: result.meta })
   })
 
   // GET /api/purchases/:id
@@ -25,9 +26,9 @@ export async function purchasesRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const prc = await service.findById(id)
     if (!prc) {
-      return reply.code(404).send({ success: false, error: 'NOT_FOUND', message: 'Purchase tidak ditemukan' })
+      return reply.code(404).send(notFound('Purchase'))
     }
-    return reply.send({ success: true, data: prc })
+    return reply.send(ok(prc))
   })
 
   // POST /api/purchases
@@ -36,11 +37,7 @@ export async function purchasesRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const result = createPurchaseSchema.safeParse(request.body)
     if (!result.success) {
-      return reply.code(400).send({
-        success: false,
-        error: 'VALIDATION_ERROR',
-        message: result.error.errors[0].message
-      })
+      return reply.code(400).send(validationError(result.error.errors[0].message))
     }
     try {
       const payload = request.user as JwtPayload
@@ -56,13 +53,9 @@ export async function purchasesRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.code(201).send({ success: true, data: prc })
+      return reply.code(201).send(ok(prc))
     } catch (err: any) {
-      return reply.code(400).send({
-        success: false,
-        error: 'PURCHASE_FAILED',
-        message: err.message
-      })
+      return reply.code(400).send(badRequest(err.message, 'PURCHASE_FAILED'))
     }
   })
 }

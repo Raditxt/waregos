@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify'
 import { ProductsService } from './products.service'
-import { ActivityService } from '../auth/activity.service'
+import { ActivityService } from '../audit/audit.service'
 import { createProductSchema, updateProductSchema, productQuerySchema } from './products.schema'
 import { JwtPayload } from '@waregos/types'
 import { Prisma } from '@prisma/client'
+import { ok, validationError, notFound, badRequest } from '../../shared/response'
 
 export async function productsRoutes(app: FastifyInstance) {
   const activityService = new ActivityService(app.prisma)
@@ -17,7 +18,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const service = new ProductsService(app.prisma, payload.role)
       const query = productQuerySchema.parse(request.query)
       const result = await service.findAll(query)
-      return reply.send({ success: true, ...result })
+      return reply.send({ success: true, data: result.data, meta: result.meta })
     }
   )
 
@@ -29,7 +30,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const payload = request.user as JwtPayload
       const service = new ProductsService(app.prisma, payload.role)
       const data = await service.getLowStock()
-      return reply.send({ success: true, data })
+      return reply.send(ok(data))
     }
   )
 
@@ -41,7 +42,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const payload = request.user as JwtPayload
       const service = new ProductsService(app.prisma, payload.role)
       const data = await service.getExpiringSoon()
-      return reply.send({ success: true, data })
+      return reply.send(ok(data))
     }
   )
 
@@ -53,7 +54,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const { days } = request.query as { days?: string }
       const service = new ProductsService(app.prisma, 'ADMIN')
       const data = await service.getDeadStock(days ? Number(days) : 30)
-      return reply.send({ success: true, data })
+      return reply.send(ok(data))
     }
   )
 
@@ -67,13 +68,9 @@ export async function productsRoutes(app: FastifyInstance) {
       const { barcode } = request.params as { barcode: string }
       const product = await service.findByBarcode(barcode)
       if (!product) {
-        return reply.code(404).send({
-          success: false,
-          error: 'NOT_FOUND',
-          message: 'Produk tidak ditemukan',
-        })
+        return reply.code(404).send(notFound('Produk'))
       }
-      return reply.send({ success: true, data: product })
+      return reply.send(ok(product))
     }
   )
 
@@ -93,18 +90,19 @@ export async function productsRoutes(app: FastifyInstance) {
         },
       })
 
-      return reply.send({
-        success: true,
-        data: history.map((h) => ({
-          id: h.id,
-          oldPrice: Number(h.oldPrice),
-          newPrice: Number(h.newPrice),
-          changedBy: h.user.name,
-          username: h.user.username,
-          reason: h.reason,
-          createdAt: h.createdAt.toISOString(),
-        })),
-      })
+      return reply.send(
+        ok(
+          history.map((h) => ({
+            id: h.id,
+            oldPrice: Number(h.oldPrice),
+            newPrice: Number(h.newPrice),
+            changedBy: h.user.name,
+            username: h.user.username,
+            reason: h.reason,
+            createdAt: h.createdAt.toISOString(),
+          }))
+        )
+      )
     }
   )
 
@@ -118,13 +116,9 @@ export async function productsRoutes(app: FastifyInstance) {
       const { id } = request.params as { id: string }
       const product = await service.findById(id)
       if (!product) {
-        return reply.code(404).send({
-          success: false,
-          error: 'NOT_FOUND',
-          message: 'Produk tidak ditemukan',
-        })
+        return reply.code(404).send(notFound('Produk'))
       }
-      return reply.send({ success: true, data: product })
+      return reply.send(ok(product))
     }
   )
 
@@ -136,11 +130,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const service = new ProductsService(app.prisma, 'ADMIN')
       const result = createProductSchema.safeParse(request.body)
       if (!result.success) {
-        return reply.code(400).send({
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: result.error.errors[0].message,
-        })
+        return reply.code(400).send(validationError(result.error.errors[0].message))
       }
       const product = await service.create(result.data)
 
@@ -155,7 +145,7 @@ export async function productsRoutes(app: FastifyInstance) {
         ipAddress: request.ip,
       })
 
-      return reply.code(201).send({ success: true, data: product })
+      return reply.code(201).send(ok(product))
     }
   )
 
@@ -168,11 +158,7 @@ export async function productsRoutes(app: FastifyInstance) {
       const payload = request.user as JwtPayload
       const result = updateProductSchema.safeParse(request.body)
       if (!result.success) {
-        return reply.code(400).send({
-          success: false,
-          error: 'VALIDATION_ERROR',
-          message: result.error.errors[0].message,
-        })
+        return reply.code(400).send(validationError(result.error.errors[0].message))
       }
       try {
         const service = new ProductsService(app.prisma, 'ADMIN')
@@ -188,13 +174,9 @@ export async function productsRoutes(app: FastifyInstance) {
           ipAddress: request.ip,
         })
 
-        return reply.send({ success: true, data: product })
+        return reply.send(ok(product))
       } catch {
-        return reply.code(404).send({
-          success: false,
-          error: 'NOT_FOUND',
-          message: 'Produk tidak ditemukan',
-        })
+        return reply.code(404).send(notFound('Produk'))
       }
     }
   )
@@ -219,13 +201,9 @@ export async function productsRoutes(app: FastifyInstance) {
           ipAddress: request.ip,
         })
 
-        return reply.send({ success: true, message: 'Produk berhasil dihapus' })
+        return reply.send(ok(null, 'Produk berhasil dihapus'))
       } catch {
-        return reply.code(404).send({
-          success: false,
-          error: 'NOT_FOUND',
-          message: 'Produk tidak ditemukan',
-        })
+        return reply.code(404).send(notFound('Produk'))
       }
     }
   )

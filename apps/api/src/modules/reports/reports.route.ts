@@ -1,271 +1,77 @@
+// ============================================
+// REPORTS ROUTE — Thin Controller
+// Only handles HTTP concerns, delegates to service
+// ============================================
+
 import { FastifyInstance } from 'fastify'
-import { startOfDay, endOfDay, startOfMonth, endOfMonth } from '@waregos/utils'
+import { ReportsService } from './reports.service'
+import { ok, notFound } from '../../shared/response'
 
 export async function reportsRoutes(app: FastifyInstance) {
+  const service = new ReportsService(app.prisma)
 
-  // GET /api/reports/summary?date=2026-06-05
+  // GET /api/reports/summary?date=2026-08-05
   app.get('/summary', {
-    preHandler: [app.authenticate]
+    preHandler: [app.authenticate],
   }, async (request, reply) => {
     const { date } = request.query as { date?: string }
     const target = date ? new Date(date) : new Date()
-    const from = startOfDay(target)
-    const to = endOfDay(target)
-
-    const transactions = await app.prisma.transaction.findMany({
-      where: {
-        createdAt: { gte: from, lte: to },
-        status: 'COMPLETED'
-      },
-      include: {
-        items: true
-      }
-    })
-
-    const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.totalAmount), 0)
-    const totalProfit = transactions.reduce((sum, t) => {
-      const profit = t.items.reduce((s, item) => {
-        return s + (Number(item.sellPrice) - Number(item.buyPrice)) * item.quantity
-      }, 0)
-      return sum + profit
-    }, 0)
-    const totalItemsSold = transactions.reduce((sum, t) => {
-      return sum + t.items.reduce((s, item) => s + item.quantity, 0)
-    }, 0)
-
-    return reply.send({
-      success: true,
-      data: {
-        date: target.toISOString().slice(0, 10),
-        totalTransactions: transactions.length,
-        totalRevenue,
-        totalProfit,
-        totalItemsSold,
-      }
-    })
-  })
-
-  // GET /api/reports/monthly?year=2026&month=6
-  app.get('/monthly', {
-    preHandler: [app.authenticate]
-  }, async (request, reply) => {
-    const { year, month } = request.query as { year?: string, month?: string }
-    const target = new Date(
-      parseInt(year ?? String(new Date().getFullYear())),
-      parseInt(month ?? String(new Date().getMonth() + 1)) - 1,
-      1
-    )
-    const from = startOfMonth(target)
-    const to = endOfMonth(target)
-
-    const transactions = await app.prisma.transaction.findMany({
-      where: {
-        createdAt: { gte: from, lte: to },
-        status: 'COMPLETED'
-      },
-      include: { items: true }
-    })
-
-    // Group by date
-    const byDate: Record<string, any> = {}
-    for (const t of transactions) {
-      const d = t.createdAt.toISOString().slice(0, 10)
-      if (!byDate[d]) {
-        byDate[d] = { date: d, totalTransactions: 0, totalRevenue: 0, totalProfit: 0, totalItemsSold: 0 }
-      }
-      byDate[d].totalTransactions += 1
-      byDate[d].totalRevenue += Number(t.totalAmount)
-      byDate[d].totalItemsSold += t.items.reduce((s, i) => s + i.quantity, 0)
-      byDate[d].totalProfit += t.items.reduce((s, i) => {
-        return s + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity
-      }, 0)
-    }
-
-    const totalRevenue = transactions.reduce((s, t) => s + Number(t.totalAmount), 0)
-    const totalProfit = transactions.reduce((s, t) => {
-      return s + t.items.reduce((si, i) => si + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity, 0)
-    }, 0)
-
-    return reply.send({
-      success: true,
-      data: {
-        year: target.getFullYear(),
-        month: target.getMonth() + 1,
-        totalTransactions: transactions.length,
-        totalRevenue,
-        totalProfit,
-        daily: Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date))
-      }
-    })
-  })
-
-  // GET /api/reports/top-products?limit=10&dateFrom=2026-06-01&dateTo=2026-06-30
-  app.get('/top-products', {
-    preHandler: [app.authenticate]
-  }, async (request, reply) => {
-    const { limit, dateFrom, dateTo } = request.query as {
-      limit?: string, dateFrom?: string, dateTo?: string
-    }
-
-    const where: any = { transaction: { status: 'COMPLETED' } }
-    if (dateFrom || dateTo) {
-      where.transaction = {
-        ...where.transaction,
-        createdAt: {
-          ...(dateFrom && { gte: new Date(dateFrom) }),
-          ...(dateTo && { lte: new Date(dateTo + 'T23:59:59Z') }),
-        }
-      }
-    }
-
-    const items = await app.prisma.transactionItem.findMany({
-      where,
-      include: {
-        product: { select: { name: true, unit: { select: { symbol: true } } } }
-      }
-    })
-
-    // Aggregate by product
-    const byProduct: Record<string, any> = {}
-    for (const item of items) {
-      const pid = item.productId
-      if (!byProduct[pid]) {
-        byProduct[pid] = {
-          productId: pid,
-          productName: item.product.name,
-          unit: item.product.unit.symbol,
-          totalQuantity: 0,
-          totalRevenue: 0,
-          totalProfit: 0,
-        }
-      }
-      byProduct[pid].totalQuantity += item.quantity
-      byProduct[pid].totalRevenue += Number(item.sellPrice) * item.quantity
-      byProduct[pid].totalProfit += (Number(item.sellPrice) - Number(item.buyPrice)) * item.quantity
-    }
-
-    const sorted = Object.values(byProduct)
-      .sort((a, b) => b.totalQuantity - a.totalQuantity)
-      .slice(0, parseInt(limit ?? '10'))
-
-    return reply.send({ success: true, data: sorted })
-  })
-
-  // GET /api/reports/stock-movements?productId=xxx&limit=20
-  app.get('/stock-movements', {
-    preHandler: [app.authenticate]
-  }, async (request, reply) => {
-    const { productId, limit } = request.query as { productId?: string, limit?: string }
-
-    const movements = await app.prisma.stockMovement.findMany({
-      where: productId ? { productId } : {},
-      orderBy: { createdAt: 'desc' },
-      take: parseInt(limit ?? '50'),
-      include: {
-        product: { select: { name: true } },
-        user: { select: { name: true } },
-      }
-    })
-
-    return reply.send({
-      success: true,
-      data: movements.map(m => ({
-        id: m.id,
-        productId: m.productId,
-        productName: m.product.name,
-        type: m.type,
-        quantity: m.quantity,
-        stockBefore: m.stockBefore,
-        stockAfter: m.stockAfter,
-        userId: m.userId,
-        userName: m.user.name,
-        notes: m.notes,
-        createdAt: m.createdAt.toISOString(),
-      }))
-    })
+    const data = await service.getDailySummary(target)
+    return reply.send(ok(data))
   })
 
   // GET /api/reports/closing?date=2026-08-05
   app.get('/closing', {
-    preHandler: [app.authenticate]
+    preHandler: [app.authenticate],
   }, async (request, reply) => {
     const { date } = request.query as { date?: string }
     const target = date ? new Date(date) : new Date()
-    const from = startOfDay(target)
-    const to = endOfDay(target)
+    const data = await service.getClosing(target)
+    return reply.send(ok(data))
+  })
 
-    const transactions = await app.prisma.transaction.findMany({
-      where: {
-        createdAt: { gte: from, lte: to },
-        status: 'COMPLETED'
-      },
-      include: { items: true }
-    })
+  // GET /api/reports/monthly?year=2026&month=8
+  app.get('/monthly', {
+    preHandler: [app.adminOnly],
+  }, async (request, reply) => {
+    const { year, month } = request.query as { year?: string; month?: string }
+    const now = new Date()
+    const data = await service.getMonthly(
+      parseInt(year ?? String(now.getFullYear())),
+      parseInt(month ?? String(now.getMonth() + 1))
+    )
+    return reply.send(ok(data))
+  })
 
-    const cancelled = await app.prisma.transaction.count({
-      where: {
-        createdAt: { gte: from, lte: to },
-        status: 'CANCELLED'
-      }
-    })
-
-    // ================== TAMBAHAN DEBT ==================
-    const byMethod = {
-      CASH: { count: 0, total: 0 },
-      TRANSFER: { count: 0, total: 0 },
-      QRIS: { count: 0, total: 0 },
-      DEBT: { count: 0, total: 0 }, // ← Ditambahkan
+  // GET /api/reports/top-products
+  app.get('/top-products', {
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    const { limit, dateFrom, dateTo } = request.query as {
+      limit?: string
+      dateFrom?: string
+      dateTo?: string
     }
+    const data = await service.getTopProducts(
+      parseInt(limit ?? '10'),
+      dateFrom,
+      dateTo
+    )
+    return reply.send(ok(data))
+  })
 
-    let totalRevenue = 0
-    let totalProfit = 0
-    let totalItems = 0
-
-    for (const trx of transactions) {
-      const method = trx.paymentMethod as keyof typeof byMethod
-      // Pastikan method yang tidak dikenal tidak menyebabkan error
-      if (byMethod[method]) {
-        byMethod[method].count += 1
-        byMethod[method].total += Number(trx.totalAmount)
-      }
-      totalRevenue += Number(trx.totalAmount)
-      totalItems += trx.items.reduce((s, i) => s + i.quantity, 0)
-      totalProfit += trx.items.reduce((s, i) => {
-        return s + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity
-      }, 0)
+  // GET /api/reports/stock-movements
+  app.get('/stock-movements', {
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    const { productId, limit } = request.query as {
+      productId?: string
+      limit?: string
     }
-
-    // Ambil transaksi terakhir
-    const lastTransaction = await app.prisma.transaction.findFirst({
-      where: {
-        createdAt: { gte: from, lte: to },
-        status: 'COMPLETED'
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        invoiceNumber: true,
-        createdAt: true,
-        totalAmount: true,
-      }
-    })
-
-    return reply.send({
-      success: true,
-      data: {
-        date: target.toISOString().slice(0, 10),
-        totalTransactions: transactions.length,
-        cancelledTransactions: cancelled,
-        totalRevenue,
-        totalProfit,
-        totalItems,
-        expectedCash: byMethod.CASH.total,
-        byPaymentMethod: byMethod,
-        lastTransaction: lastTransaction ? {
-          invoiceNumber: lastTransaction.invoiceNumber,
-          createdAt: lastTransaction.createdAt.toISOString(),
-          totalAmount: Number(lastTransaction.totalAmount),
-        } : null,
-      }
-    })
+    const data = await service.getStockMovements(
+      productId,
+      parseInt(limit ?? '50')
+    )
+    return reply.send(ok(data))
   })
 }
