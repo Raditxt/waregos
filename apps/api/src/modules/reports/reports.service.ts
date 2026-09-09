@@ -6,6 +6,10 @@
 import { PrismaClient } from '@prisma/client'
 import { startOfDay, endOfDay, startOfMonth, endOfMonth } from '@waregos/utils'
 import { logger } from '../../shared/logger'
+import {
+  TransactionForReport,
+  TransactionItemForAggregation
+} from '../../shared/prisma-types'
 
 export class ReportsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -143,7 +147,7 @@ export class ReportsService {
   // PRIVATE HELPERS
   // ============================================
 
-  private calculateSummary(transactions: any[], cancelled: number, date: Date) {
+  private calculateSummary(transactions: TransactionForReport[], cancelled: number, date: Date) {
     const { totalRevenue, totalProfit, totalItems } = this.calculateTotals(transactions)
     return {
       date: date.toISOString().slice(0, 10),
@@ -155,15 +159,15 @@ export class ReportsService {
     }
   }
 
-  private calculateTotals(transactions: any[]) {
+  private calculateTotals(transactions: TransactionForReport[]) {
     let totalRevenue = 0
     let totalProfit = 0
     let totalItems = 0
 
     for (const t of transactions) {
       totalRevenue += Number(t.totalAmount)
-      totalItems += t.items.reduce((s: number, i: any) => s + i.quantity, 0)
-      totalProfit += t.items.reduce((s: number, i: any) =>
+      totalItems += t.items.reduce((s, i) => s + i.quantity, 0)
+      totalProfit += t.items.reduce((s, i) =>
         s + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity, 0
       )
     }
@@ -171,7 +175,7 @@ export class ReportsService {
     return { totalRevenue, totalProfit, totalItems }
   }
 
-  private groupByPaymentMethod(transactions: any[]) {
+  private groupByPaymentMethod(transactions: TransactionForReport[]) {
     const byMethod: Record<string, { count: number; total: number }> = {
       CASH: { count: 0, total: 0 },
       TRANSFER: { count: 0, total: 0 },
@@ -190,7 +194,7 @@ export class ReportsService {
     return byMethod
   }
 
-  private groupByDate(transactions: any[]) {
+  private groupByDate(transactions: TransactionForReport[]) {
     const byDate: Record<string, any> = {}
 
     for (const t of transactions) {
@@ -206,8 +210,8 @@ export class ReportsService {
       }
       byDate[d].totalTransactions += 1
       byDate[d].totalRevenue += Number(t.totalAmount)
-      byDate[d].totalItemsSold += t.items.reduce((s: number, i: any) => s + i.quantity, 0)
-      byDate[d].totalProfit += t.items.reduce((s: number, i: any) =>
+      byDate[d].totalItemsSold += t.items.reduce((s, i) => s + i.quantity, 0)
+      byDate[d].totalProfit += t.items.reduce((s, i) =>
         s + (Number(i.sellPrice) - Number(i.buyPrice)) * i.quantity, 0
       )
     }
@@ -215,7 +219,7 @@ export class ReportsService {
     return byDate
   }
 
-  private aggregateByProduct(items: any[], limit: number) {
+  private aggregateByProduct(items: TransactionItemForAggregation[], limit: number) {
     const byProduct: Record<string, any> = {}
 
     for (const item of items) {

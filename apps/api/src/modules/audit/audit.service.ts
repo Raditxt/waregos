@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client'
-import { Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { ActivityLogWhereInput } from '../../shared/prisma-types';
 
 export type ActivityAction =
   | 'LOGIN'
@@ -14,15 +15,15 @@ export type ActivityAction =
   | 'CREATE_PURCHASE'
   | 'CREATE_USER'
   | 'UPDATE_USER'
-  | 'ADJUST_STOCK'
+  | 'ADJUST_STOCK';
 
 export interface LogActivityParams {
-  userId: string
-  action: ActivityAction
-  entityType?: string
-  entityId?: string
-  details?: Prisma.InputJsonValue
-  ipAddress?: string
+  userId: string;
+  action: ActivityAction;
+  entityType?: string;
+  entityId?: string;
+  details?: Prisma.InputJsonValue;
+  ipAddress?: string;
 }
 
 export class ActivityService {
@@ -38,34 +39,34 @@ export class ActivityService {
           entityId: params.entityId,
           details: params.details,
           ipAddress: params.ipAddress,
-        }
-      })
+        },
+      });
     } catch (err) {
-      // Log error tapi jangan crash app utama
-      console.error('Failed to write activity log:', err)
+      // Log error but don't crash the app
+      console.error('Failed to write activity log:', err);
     }
   }
 
   async findAll(params: {
-    page?: number
-    limit?: number
-    userId?: string
-    action?: string
-    dateFrom?: string
-    dateTo?: string
+    page?: number;
+    limit?: number;
+    userId?: string;
+    action?: string;
+    dateFrom?: string;
+    dateTo?: string;
   }) {
-    const page = Math.max(1, params.page ?? 1)
-    const limit = Math.min(100, params.limit ?? 30)
-    const skip = (page - 1) * limit
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(100, params.limit ?? 30);
+    const skip = (page - 1) * limit;
 
-    const where: any = {}
+    const where: ActivityLogWhereInput = {};
 
-    if (params.userId) where.userId = params.userId
-    if (params.action) where.action = params.action
+    if (params.userId) where.userId = params.userId;
+    if (params.action) where.action = params.action as ActivityAction;
     if (params.dateFrom || params.dateTo) {
-      where.createdAt = {}
-      if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom)
-      if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + 'T23:59:59Z')
+      where.createdAt = {};
+      if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom);
+      if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + 'T23:59:59Z');
     }
 
     const [data, total] = await Promise.all([
@@ -75,14 +76,14 @@ export class ActivityService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { name: true, username: true, role: true } }
-        }
+          user: { select: { name: true, username: true, role: true } },
+        },
       }),
-      this.prisma.activityLog.count({ where })
-    ])
+      this.prisma.activityLog.count({ where }),
+    ]);
 
     return {
-      data: data.map((log: typeof data[0]) => ({
+      data: data.map((log) => ({
         id: log.id,
         userId: log.userId,
         userName: log.user.name,
@@ -99,8 +100,8 @@ export class ActivityService {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    }
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }

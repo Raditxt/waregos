@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { AxiosResponse } from 'axios'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +41,8 @@ interface DeadStockItem {
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
+  const isAdmin = user?.role === 'ADMIN' // <-- tentukan role admin
+
   const [summary, setSummary] = useState<Summary | null>(null)
   const [monthly, setMonthly] = useState<MonthlyDay[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,26 +55,45 @@ export default function DashboardPage() {
     daysLeft: number
     status: string
   }>>([])
-  const [deadStock, setDeadStock] = useState<DeadStockItem[]>([])  // <-- state baru
+  const [deadStock, setDeadStock] = useState<DeadStockItem[]>([])
 
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd')
     const now = new Date()
 
-    Promise.all([
+    // Buat daftar request dasar (selalu dijalankan)
+    const requests: Promise<AxiosResponse>[] = [
       api.get(`/reports/summary?date=${today}`),
-      api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`),
       api.get('/products/expiring-soon'),
-      api.get('/products/dead-stock')  // <-- tambahan fetch dead stock
-    ]).then(([summaryRes, monthlyRes, expiringRes, deadStockRes]) => {
-      setSummary(summaryRes.data.data)
-      setMonthly(monthlyRes.data.data.daily ?? [])
-      setExpiringSoon(expiringRes.data.data ?? [])
-      setDeadStock(deadStockRes.data.data ?? [])
-    }).catch((error) => {
-      console.error('Failed to load dashboard data:', error)
-    }).finally(() => setLoading(false))
-  }, [])
+      api.get('/products/dead-stock'),
+    ]
+
+    // Tambahkan request bulanan hanya untuk admin
+    let monthlyIndex = -1
+    if (isAdmin) {
+      monthlyIndex = requests.length
+      requests.push(
+        api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
+      )
+    }
+
+    Promise.all(requests)
+      .then((results) => {
+        // summary selalu ada
+        setSummary(results[0].data.data)
+        setExpiringSoon(results[1].data.data ?? [])
+        setDeadStock(results[2].data.data ?? [])
+
+        // monthly hanya jika request dilakukan
+        if (isAdmin && monthlyIndex !== -1 && results[monthlyIndex]) {
+          setMonthly(results[monthlyIndex].data.data.daily ?? [])
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load dashboard data:', error)
+      })
+      .finally(() => setLoading(false))
+  }, [isAdmin]) // tambahkan isAdmin sebagai dependency
 
   const formatRupiah = (n: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
@@ -227,17 +249,13 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Omzet Bulan Ini</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {monthly.length === 0 ? (
-            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-              Belum ada data transaksi bulan ini
-            </div>
-          ) : (
+      {/* Chart — hanya untuk admin dan jika ada data */}
+      {isAdmin && monthly.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Omzet Bulan Ini</CardTitle>
+          </CardHeader>
+          <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={monthly}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -272,9 +290,23 @@ export default function DashboardPage() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Jika admin tetapi tidak ada data bulanan */}
+      {isAdmin && monthly.length === 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Omzet Bulan Ini</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+              Belum ada data transaksi bulan ini
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

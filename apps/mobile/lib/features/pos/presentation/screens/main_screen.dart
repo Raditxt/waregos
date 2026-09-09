@@ -6,7 +6,6 @@ import 'pos_screen.dart';
 import '../../../products/presentation/screens/products_screen.dart';
 import '../../../debts/presentation/screens/debts_screen.dart';
 import '../../../reports/presentation/screens/reports_screen.dart';
-import '../../../../shared/widgets/settings_screen.dart'; // <-- Tambahan import
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -59,18 +58,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           ],
         ),
         actions: [
-          // ====== TOMBOL SETTINGS (TAMBAHAN) ======
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
-            },
-          ),
           // ====== USER INFO + LOGOUT ======
           PopupMenuButton(
             child: Padding(

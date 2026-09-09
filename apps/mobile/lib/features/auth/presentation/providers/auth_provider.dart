@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/auth_model.dart';
 import '../../../../core/api/api_client.dart';
@@ -59,10 +60,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
+      // Gunakan ApiConstants.baseUrl langsung (tidak perlu getBaseUrl)
+      debugPrint('[Auth] Attempting login to: ${ApiConstants.baseUrl}');
+      
       final res = await ApiClient.post(
         ApiConstants.login,
         data: {'username': username, 'password': password},
       );
+      debugPrint('[Auth] Login response: ${res.statusCode}');
 
       final data = res.data['data'] as Map<String, dynamic>;
       final auth = AuthResponse.fromJson(data);
@@ -84,7 +89,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // === UPDATE DI SINI ===
   Future<void> logout() async {
     await SecureStorage.clearAll();
     ApiClient.resetInstance(); // Reset instance Dio untuk membersihkan state client

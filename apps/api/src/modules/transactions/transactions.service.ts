@@ -1,50 +1,51 @@
-import { PrismaClient } from '@prisma/client'
-import { CreateTransactionInput, TransactionQueryInput } from './transactions.schema'
-import { generateInvoiceNumber } from '@waregos/utils'
+import { PrismaClient, Prisma } from '@prisma/client';
+import { CreateTransactionInput, TransactionQueryInput } from './transactions.schema';
+import { generateInvoiceNumber } from '@waregos/utils';
+import { TransactionWithRelations, TransactionForReport } from '../../shared/prisma-types';
 
 export class TransactionsService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
+  // ─── CREATE TRANSACTION ─────────────────────────────────────
   async create(input: CreateTransactionInput, userId: string) {
-    // Jalankan seluruh operasi dalam satu transaksi Prisma
     const transaction = await this.prisma.$transaction(async (tx) => {
-      // 1. Ambil semua produk yang dibutuhkan (dengan row-level lock otomatis)
-      const productIds = input.items.map(i => i.productId)
+      // 1. Ambil semua produk yang dibutuhkan
+      const productIds = input.items.map((i) => i.productId);
       const products = await tx.product.findMany({
         where: {
           id: { in: productIds },
-          isActive: true
-        }
-      })
+          isActive: true,
+        },
+      });
 
       if (products.length !== productIds.length) {
-        throw new Error('Satu atau lebih produk tidak ditemukan')
+        throw new Error('Satu atau lebih produk tidak ditemukan');
       }
 
       // 2. Validasi stok
       for (const item of input.items) {
-        const product = products.find(p => p.id === item.productId)!
+        const product = products.find((p) => p.id === item.productId)!;
         if (product.stock < item.quantity) {
-          throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`)
+          throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`);
         }
       }
 
       // 3. Hitung total
       const totalAmount = input.items.reduce((sum, item) => {
-        return sum + item.sellPrice * item.quantity
-      }, 0)
+        return sum + item.sellPrice * item.quantity;
+      }, 0);
 
       // Validasi pembayaran — skip untuk DEBT
       if (input.paymentMethod !== 'DEBT' && input.paidAmount < totalAmount) {
-        throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`)
+        throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`);
       }
 
       // Validasi DEBT — wajib ada customerName
       if (input.paymentMethod === 'DEBT' && !input.customerName) {
-        throw new Error('Nama pelanggan wajib diisi untuk transaksi hutang')
+        throw new Error('Nama pelanggan wajib diisi untuk transaksi hutang');
       }
 
-      const changeAmount = input.paymentMethod === 'DEBT' ? 0 : input.paidAmount - totalAmount
+      const changeAmount = input.paymentMethod === 'DEBT' ? 0 : input.paidAmount - totalAmount;
 
       // 4. Buat transaksi
       const trx = await tx.transaction.create({
@@ -57,40 +58,40 @@ export class TransactionsService {
           changeAmount,
           notes: input.notes,
           items: {
-            create: input.items.map(item => {
-              const product = products.find(p => p.id === item.productId)!
+            create: input.items.map((item) => {
+              const product = products.find((p) => p.id === item.productId)!;
               return {
                 productId: item.productId,
                 quantity: item.quantity,
                 buyPrice: product.buyPrice,
                 sellPrice: item.sellPrice,
                 subtotal: item.sellPrice * item.quantity,
-              }
-            })
-          }
+              };
+            }),
+          },
         },
         include: {
           items: {
             include: {
-              product: { select: { name: true } }
-            }
+              product: { select: { name: true } },
+            },
           },
-          user: { select: { name: true } }
-        }
-      })
+          user: { select: { name: true } },
+        },
+      });
 
       // 5. Update stok, lastSoldAt & buat stock movement
       for (const item of input.items) {
-        const product = products.find(p => p.id === item.productId)!
-        const newStock = product.stock - item.quantity
+        const product = products.find((p) => p.id === item.productId)!;
+        const newStock = product.stock - item.quantity;
 
         await tx.product.update({
           where: { id: item.productId },
           data: {
             stock: newStock,
-            lastSoldAt: new Date(), // <-- update terakhir kali produk terjual
-          }
-        })
+            lastSoldAt: new Date(),
+          },
+        });
 
         await tx.stockMovement.create({
           data: {
@@ -101,8 +102,8 @@ export class TransactionsService {
             stockAfter: newStock,
             transactionId: trx.id,
             userId,
-          }
-        })
+          },
+        });
       }
 
       // Catat debt transaction kalau bayar hutang
@@ -113,35 +114,43 @@ export class TransactionsService {
             transactionId: trx.id,
             type: 'DEBT',
             amount: totalAmount,
-            items: trx.items.map((item: any) => ({
+            items: trx.items.map((item) => ({
               name: item.product?.name ?? item.productId,
               quantity: item.quantity,
               price: Number(item.sellPrice),
-            })) as any,
+            })) as any, // masih perlu cast jika schema prisma mengharapkan tipe JSON tertentu
             notes: input.notes ?? 'Hutang via POS',
             createdBy: userId,
-          }
-        })
+          },
+        });
       }
 
-      return trx
-    })
+      return trx;
+    });
 
-    return this.formatTransaction(transaction)
+    return this.formatTransaction(transaction);
   }
 
+  // ─── FIND ALL TRANSACTIONS ─────────────────────────────────
   async findAll(query: TransactionQueryInput) {
-    const page = Math.max(1, parseInt(query.page ?? '1'))
-    const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')))
-    const skip = (page - 1) * limit
+    const page = Math.max(1, parseInt(query.page ?? '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
+    const skip = (page - 1) * limit;
 
-    const where: any = {}
+    const where: Prisma.TransactionWhereInput = {};
 
-    if (query.status) where.status = query.status
+    if (query.status) {
+      where.status = query.status;
+    }
+
     if (query.dateFrom || query.dateTo) {
-      where.createdAt = {}
-      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom)
-      if (query.dateTo) where.createdAt.lte = new Date(query.dateTo + 'T23:59:59Z')
+      where.createdAt = {};
+      if (query.dateFrom) {
+        where.createdAt.gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        where.createdAt.lte = new Date(query.dateTo + 'T23:59:59Z');
+      }
     }
 
     const [data, total] = await Promise.all([
@@ -153,58 +162,67 @@ export class TransactionsService {
         include: {
           user: { select: { name: true } },
           items: {
-            include: { product: { select: { name: true } } }
-          }
-        }
+            include: { product: { select: { name: true } } },
+          },
+        },
       }),
-      this.prisma.transaction.count({ where })
-    ])
+      this.prisma.transaction.count({ where }),
+    ]);
 
     return {
-      data: data.map(this.formatTransaction),
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) }
-    }
+      data: data.map((trx) => this.formatTransaction(trx)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
+  // ─── FIND TRANSACTION BY ID ────────────────────────────────
   async findById(id: string) {
     const trx = await this.prisma.transaction.findUnique({
       where: { id },
       include: {
         user: { select: { name: true } },
         items: {
-          include: { product: { select: { name: true } } }
-        }
-      }
-    })
-    if (!trx) return null
-    return this.formatTransaction(trx)
+          include: { product: { select: { name: true } } },
+        },
+      },
+    });
+
+    if (!trx) return null;
+    return this.formatTransaction(trx);
   }
 
+  // ─── CANCEL TRANSACTION ─────────────────────────────────────
   async cancel(id: string, userId: string) {
     const trx = await this.prisma.transaction.findUnique({
       where: { id },
-      include: { items: true }
-    })
+      include: { items: true },
+    });
 
-    if (!trx) throw new Error('Transaksi tidak ditemukan')
-    if (trx.status !== 'COMPLETED') throw new Error('Transaksi tidak bisa dibatalkan')
+    if (!trx) throw new Error('Transaksi tidak ditemukan');
+    if (trx.status !== 'COMPLETED') throw new Error('Transaksi tidak bisa dibatalkan');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.transaction.update({
         where: { id },
-        data: { status: 'CANCELLED' }
-      })
+        data: { status: 'CANCELLED' },
+      });
 
-      // Kembalikan stok (tidak mengubah lastSoldAt karena ini bukan penjualan baru)
+      // Kembalikan stok (tidak mengubah lastSoldAt)
       for (const item of trx.items) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } })
-        if (!product) continue
-        const newStock = product.stock + item.quantity
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product) continue;
+
+        const newStock = product.stock + item.quantity;
 
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: newStock }
-        })
+          data: { stock: newStock },
+        });
 
         await tx.stockMovement.create({
           data: {
@@ -215,13 +233,14 @@ export class TransactionsService {
             stockAfter: newStock,
             transactionId: id,
             userId,
-          }
-        })
+          },
+        });
       }
-    })
+    });
   }
 
-  private formatTransaction(trx: any) {
+  // ─── FORMAT RESPONSE ────────────────────────────────────────
+  private formatTransaction(trx: TransactionWithRelations) {
     return {
       id: trx.id,
       invoiceNumber: trx.invoiceNumber,
@@ -234,7 +253,7 @@ export class TransactionsService {
       changeAmount: Number(trx.changeAmount),
       notes: trx.notes,
       createdAt: trx.createdAt.toISOString(),
-      items: trx.items.map((item: any) => ({
+      items: trx.items.map((item) => ({
         id: item.id,
         productId: item.productId,
         productName: item.product.name,
@@ -242,7 +261,7 @@ export class TransactionsService {
         buyPrice: Number(item.buyPrice),
         sellPrice: Number(item.sellPrice),
         subtotal: Number(item.subtotal),
-      }))
-    }
+      })),
+    };
   }
 }

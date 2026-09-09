@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/date_symbol_data_local.dart'; // <-- import untuk lokalisasi
+import 'package:intl/date_symbol_data_local.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/main_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeDateFormatting('id', null); // <-- inisialisasi locale Indonesia
+  await initializeDateFormatting('id', null);
   runApp(
     const ProviderScope(
       child: WaregosMobileApp(),
@@ -26,7 +26,7 @@ class WaregosMobileApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6366F1), // Indigo
+          seedColor: const Color(0xFF6366F1),
           brightness: Brightness.light,
         ),
         textTheme: GoogleFonts.interTextTheme(),
@@ -62,16 +62,11 @@ class _AppEntryPointState extends ConsumerState<AppEntryPoint> {
   Widget build(BuildContext context) {
     if (!_hydrated) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
-
     final auth = ref.watch(authProvider);
-    if (auth.isAuthenticated) {
-      return const MainScreen();
-    }
+    if (auth.isAuthenticated) return const MainScreen();
     return const LoginScreen();
   }
 }

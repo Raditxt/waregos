@@ -1,7 +1,7 @@
 class ApiConstants {
-  // Default IP — bisa diubah dari settings di dalam app
-  static const String defaultBaseUrl = 'http://192.168.56.1:3001/api';
-  static const String settingsKey = 'waregos_server_url';
+  // Hostname mDNS — otomatis resolve di jaringan lokal
+  // Tidak perlu IP manual
+  static const String baseUrl = 'http://192.168.110.47:3001/api';
   
   // Auth
   static const String login = '/auth/login';

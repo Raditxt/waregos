@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/lib/store' // <-- tambah import
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,6 +83,10 @@ export default function ReportsPage() {
   const [loadingTop, setLoadingTop] = useState(false)
   const [loadingMovements, setLoadingMovements] = useState(false)
 
+  // Ambil user dari auth store
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'ADMIN'
+
   const fetchDaily = async (date: string) => {
     setLoadingDaily(true)
     try {
@@ -93,6 +98,7 @@ export default function ReportsPage() {
   }
 
   const fetchMonthly = async (year: number, month: number) => {
+    if (!isAdmin) return // <- guard untuk non-admin
     setLoadingMonthly(true)
     try {
       const res = await api.get('/reports/monthly', { params: { year, month } })
@@ -201,9 +207,9 @@ export default function ReportsPage() {
       </div>
 
       <Tabs defaultValue="daily">
-        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+        <TabsList className={`grid w-full max-w-lg ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="daily">Harian</TabsTrigger>
-          <TabsTrigger value="monthly">Bulanan</TabsTrigger>
+          {isAdmin && <TabsTrigger value="monthly">Bulanan</TabsTrigger>}
           <TabsTrigger value="products">Produk</TabsTrigger>
           <TabsTrigger value="stock">Stok</TabsTrigger>
         </TabsList>
@@ -252,129 +258,131 @@ export default function ReportsPage() {
           ) : null}
         </TabsContent>
 
-        {/* ── MONTHLY ── */}
-        <TabsContent value="monthly" className="space-y-4 mt-4">
-          <div className="flex items-center gap-3">
-            <Input
-              type="month"
-              className="w-48"
-              value={`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`}
-              max={format(new Date(), 'yyyy-MM')}
-              onChange={(e) => {
-                const [year, month] = e.target.value.split('-')
-                setSelectedYear(Number(year))
-                setSelectedMonth(Number(month))
-              }}
-            />
-            <Button
-              onClick={() => fetchMonthly(selectedYear, selectedMonth)}
-              disabled={loadingMonthly}
-            >
-              {loadingMonthly ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tampilkan'}
-            </Button>
-          </div>
-
-          {loadingMonthly ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        {/* ── MONTHLY (hanya untuk admin) ── */}
+        {isAdmin && (
+          <TabsContent value="monthly" className="space-y-4 mt-4">
+            <div className="flex items-center gap-3">
+              <Input
+                type="month"
+                className="w-48"
+                value={`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`}
+                max={format(new Date(), 'yyyy-MM')}
+                onChange={(e) => {
+                  const [year, month] = e.target.value.split('-')
+                  setSelectedYear(Number(year))
+                  setSelectedMonth(Number(month))
+                }}
+              />
+              <Button
+                onClick={() => fetchMonthly(selectedYear, selectedMonth)}
+                disabled={loadingMonthly}
+              >
+                {loadingMonthly ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Tampilkan'}
+              </Button>
             </div>
-          ) : monthlyData ? (
-            <div className="space-y-4">
-              {/* Monthly summary cards */}
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                {[
-                  { title: 'Total Transaksi', value: monthlyData.totalTransactions, icon: ShoppingCart, color: 'text-blue-500' },
-                  { title: 'Total Omzet', value: formatRupiah(monthlyData.totalRevenue), icon: DollarSign, color: 'text-green-500' },
-                  { title: 'Total Profit', value: formatRupiah(monthlyData.totalProfit), icon: TrendingUp, color: 'text-emerald-500' },
-                  { title: 'Margin', value: monthlyData.totalRevenue > 0 ? `${((monthlyData.totalProfit / monthlyData.totalRevenue) * 100).toFixed(1)}%` : '0%', icon: Package, color: 'text-orange-500' },
-                ].map(({ title, value, icon: Icon, color }) => (
-                  <Card key={title}>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                      <Icon className={`w-4 h-4 ${color}`} />
+
+            {loadingMonthly ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : monthlyData ? (
+              <div className="space-y-4">
+                {/* Monthly summary cards */}
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                  {[
+                    { title: 'Total Transaksi', value: monthlyData.totalTransactions, icon: ShoppingCart, color: 'text-blue-500' },
+                    { title: 'Total Omzet', value: formatRupiah(monthlyData.totalRevenue), icon: DollarSign, color: 'text-green-500' },
+                    { title: 'Total Profit', value: formatRupiah(monthlyData.totalProfit), icon: TrendingUp, color: 'text-emerald-500' },
+                    { title: 'Margin', value: monthlyData.totalRevenue > 0 ? `${((monthlyData.totalProfit / monthlyData.totalRevenue) * 100).toFixed(1)}%` : '0%', icon: Package, color: 'text-orange-500' },
+                  ].map(({ title, value, icon: Icon, color }) => (
+                    <Card key={title}>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+                        <Icon className={`w-4 h-4 ${color}`} />
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xl font-bold">{value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Chart */}
+                {monthlyData.daily.length > 0 ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">
+                        Grafik {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: id })}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-xl font-bold">{value}</p>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={monthlyData.daily}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="date"
+                            tickFormatter={(v) => format(new Date(v), 'd', { locale: id })}
+                            className="text-xs"
+                          />
+                          <YAxis
+                            tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                            className="text-xs"
+                          />
+                          <Tooltip
+                            formatter={(value) => formatRupiah(Number(value))}
+                            labelFormatter={(label) => format(new Date(label), 'd MMMM yyyy', { locale: id })}
+                          />
+                          <Legend />
+                          <Bar dataKey="totalRevenue" name="Omzet" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="totalProfit" name="Profit" fill="hsl(142 76% 36%)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    Tidak ada data transaksi bulan ini
+                  </div>
+                )}
 
-              {/* Chart */}
-              {monthlyData.daily.length > 0 ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Grafik {format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy', { locale: id })}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={monthlyData.daily}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(v) => format(new Date(v), 'd', { locale: id })}
-                          className="text-xs"
-                        />
-                        <YAxis
-                          tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                          className="text-xs"
-                        />
-                        <Tooltip
-                          formatter={(value) => formatRupiah(Number(value))}
-                          labelFormatter={(label) => format(new Date(label), 'd MMMM yyyy', { locale: id })}
-                        />
-                        <Legend />
-                        <Bar dataKey="totalRevenue" name="Omzet" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="totalProfit" name="Profit" fill="hsl(142 76% 36%)" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  Tidak ada data transaksi bulan ini
-                </div>
-              )}
-
-              {/* Daily breakdown table */}
-              {monthlyData.daily.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Rincian Harian</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tanggal</TableHead>
-                          <TableHead className="text-center">Transaksi</TableHead>
-                          <TableHead className="text-right">Omzet</TableHead>
-                          <TableHead className="text-right">Profit</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {monthlyData.daily.map((d) => (
-                          <TableRow key={d.date}>
-                            <TableCell>
-                              {format(new Date(d.date), 'EEEE, d MMM', { locale: id })}
-                            </TableCell>
-                            <TableCell className="text-center">{d.totalTransactions}</TableCell>
-                            <TableCell className="text-right">{formatRupiah(d.totalRevenue)}</TableCell>
-                            <TableCell className="text-right text-emerald-600 font-medium">
-                              {formatRupiah(d.totalProfit)}
-                            </TableCell>
+                {/* Daily breakdown table */}
+                {monthlyData.daily.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Rincian Harian</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Tanggal</TableHead>
+                            <TableHead className="text-center">Transaksi</TableHead>
+                            <TableHead className="text-right">Omzet</TableHead>
+                            <TableHead className="text-right">Profit</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          ) : null}
-        </TabsContent>
+                        </TableHeader>
+                        <TableBody>
+                          {monthlyData.daily.map((d) => (
+                            <TableRow key={d.date}>
+                              <TableCell>
+                                {format(new Date(d.date), 'EEEE, d MMM', { locale: id })}
+                              </TableCell>
+                              <TableCell className="text-center">{d.totalTransactions}</TableCell>
+                              <TableCell className="text-right">{formatRupiah(d.totalRevenue)}</TableCell>
+                              <TableCell className="text-right text-emerald-600 font-medium">
+                                {formatRupiah(d.totalProfit)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            ) : null}
+          </TabsContent>
+        )}
 
         {/* ── TOP PRODUCTS ── */}
         <TabsContent value="products" className="space-y-4 mt-4">

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
-import '../../../../shared/widgets/settings_screen.dart'; // Tambahan import
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -57,25 +56,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      // ===== APP BAR DENGAN TOMBOL SETTINGS (TAMBAHAN) =====
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_rounded),
-            tooltip: 'Pengaturan Server',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
