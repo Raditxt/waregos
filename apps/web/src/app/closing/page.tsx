@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah} from '@/lib/format' // ← import helper
 
 interface ClosingData {
   date: string
@@ -60,11 +61,6 @@ export default function ClosingPage() {
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate])
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(n)
 
   const cashDiff = data ? Number(actualCash.replace(/\./g, '') || 0) - data.expectedCash : 0
 

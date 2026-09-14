@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah} from '@/lib/format' // ← import helper
 
 interface DebtSummary {
   customerName: string
@@ -134,11 +135,6 @@ export default function DebtsPage() {
       setSaving(false)
     }
   }
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(n)
 
   const totalOutstanding = debts.reduce((s, d) => s + d.totalDebt, 0)
 

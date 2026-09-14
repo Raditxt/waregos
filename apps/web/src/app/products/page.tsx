@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { Plus, Search, Pencil, Trash2, Loader2, PackageX, History } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah, formatNumber, parseNumber } from '@/lib/format' // ← import helper
 
 interface Category { id: string; name: string }
 interface Unit { id: string; name: string; symbol: string }
@@ -45,17 +46,6 @@ const emptyForm = {
   buyPrice: '', sellPrice: '',
   stock: '0', minStock: '5',
   expiryDate: '', expiryAlertDays: '7',
-}
-
-// Helper function untuk format angka dengan titik ribuan
-function formatNumber(value: string): string {
-  const num = value.replace(/\D/g, '')
-  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-}
-
-// Helper function untuk menghapus titik (parse ke angka murni)
-function parseNumber(value: string): string {
-  return value.replace(/\./g, '')
 }
 
 export default function ProductsPage() {
@@ -221,9 +211,6 @@ export default function ProductsPage() {
       setSaving(false)
     }
   }
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
   return (
     <div className="space-y-6">

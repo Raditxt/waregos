@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 
 export class DebtService {
   constructor(private prisma: PrismaClient) {}
@@ -41,13 +41,16 @@ export class DebtService {
 
   // Riwayat hutang per pelanggan
   async getHistory(customerName: string) {
+    // Definisikan where dengan tipe Prisma.DebtTransactionWhereInput
+    const where: Prisma.DebtTransactionWhereInput = {
+      customerName: {
+        equals: customerName,
+        mode: 'insensitive'
+      }
+    }
+
     const history = await this.prisma.debtTransaction.findMany({
-      where: {
-        customerName: {
-          equals: customerName,
-          mode: 'insensitive'
-        }
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { name: true } },
@@ -93,7 +96,7 @@ export class DebtService {
         transactionId: input.transactionId,
         type: 'DEBT',
         amount: input.amount,
-        items: input.items as any,
+        items: input.items as Prisma.InputJsonValue, // lebih baik gunakan Prisma.InputJsonValue daripada any
         notes: input.notes,
         createdBy: input.createdBy,
       }
@@ -128,10 +131,13 @@ export class DebtService {
 
   // Search nama pelanggan yang pernah hutang
   async searchCustomers(query: string) {
+    // Definisikan where dengan tipe Prisma.DebtTransactionWhereInput
+    const where: Prisma.DebtTransactionWhereInput = {
+      customerName: { contains: query, mode: 'insensitive' }
+    }
+
     const results = await this.prisma.debtTransaction.findMany({
-      where: {
-        customerName: { contains: query, mode: 'insensitive' }
-      },
+      where,
       select: { customerName: true },
       distinct: ['customerName'],
       take: 10,

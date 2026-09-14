@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah } from '@/lib/format' // ← import helper
 
 interface ProductOption { id: string; name: string; unitSymbol: string; buyPrice: number }
 interface PurchaseItem { productId: string; productName: string; quantity: number; buyPrice: number; subtotal: number }
@@ -173,9 +174,6 @@ export default function PurchasesPage() {
       setSaving(false)
     }
   }
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
   return (
     <div className="space-y-6">

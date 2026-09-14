@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { ActivityLogWhereInput } from '../../shared/prisma-types';
+import { logger } from '../../shared/logger';
 
 export type ActivityAction =
   | 'LOGIN'
@@ -42,8 +42,7 @@ export class ActivityService {
         },
       });
     } catch (err) {
-      // Log error but don't crash the app
-      console.error('Failed to write activity log:', err);
+      logger.error('Failed to write activity log', 'ActivityService', err);
     }
   }
 

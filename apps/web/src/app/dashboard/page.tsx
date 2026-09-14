@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, ShoppingCart, Package, DollarSign, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah } from '@/lib/format' // ← import formatRupiah
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -94,9 +95,6 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false))
   }, [isAdmin]) // tambahkan isAdmin sebagai dependency
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 
   if (loading) {
     return (

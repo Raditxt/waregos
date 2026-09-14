@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/lib/store' // <-- tambah import
+import { useAuthStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ import {
 } from 'recharts'
 import { format, subDays } from 'date-fns'
 import { id } from 'date-fns/locale'
+import { formatRupiah} from '@/lib/format' // ← import helper
 
 interface DailySummary {
   date: string
@@ -98,7 +99,7 @@ export default function ReportsPage() {
   }
 
   const fetchMonthly = async (year: number, month: number) => {
-    if (!isAdmin) return // <- guard untuk non-admin
+    if (!isAdmin) return
     setLoadingMonthly(true)
     try {
       const res = await api.get('/reports/monthly', { params: { year, month } })
@@ -162,11 +163,6 @@ export default function ReportsPage() {
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', {
-      style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(n)
 
   const summaryCards = dailySummary ? [
     {

@@ -1,7 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { CreateTransactionInput, TransactionQueryInput } from './transactions.schema';
 import { generateInvoiceNumber } from '@waregos/utils';
-import { TransactionWithRelations, TransactionForReport } from '../../shared/prisma-types';
+import { TransactionWithRelations } from '../../shared/prisma-types';
 
 export class TransactionsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -118,7 +118,7 @@ export class TransactionsService {
               name: item.product?.name ?? item.productId,
               quantity: item.quantity,
               price: Number(item.sellPrice),
-            })) as any, // masih perlu cast jika schema prisma mengharapkan tipe JSON tertentu
+            })) as Prisma.InputJsonValue,
             notes: input.notes ?? 'Hutang via POS',
             createdBy: userId,
           },
