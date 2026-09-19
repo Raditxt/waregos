@@ -3,107 +3,276 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
-import { api, getErrorMessage } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { toast } from 'sonner'
-import { Loader2, Store, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Store, ArrowRight, Loader2 } from 'lucide-react'
+
+/* ============================================================
+   LOGIN PAGE
+   Layout  : split 2 kolom (brand panel + form)
+   Auth    : useAuthStore().login()
+   Redirect: /dashboard kalau user ada
+   ============================================================ */
 
 export default function LoginPage() {
   const router = useRouter()
-  const setAuth = useAuthStore((s) => s.setAuth)
+  const login = useAuthStore((s) => s.login)
+  const isLoading = useAuthStore((s) => s.isLoading)
+  const error = useAuthStore((s) => s.error)
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
 
-  const handleLogin = async () => {
-    if (!username || !password) {
-      toast.error('Username dan password wajib diisi')
-      return
-    }
+  const canSubmit = username.trim().length > 0 && password.length > 0 && !isLoading
 
-    setLoading(true)
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSubmit) return
+
     try {
-      const res = await api.post('/auth/login', { username, password })
-      const { accessToken, user } = res.data.data
-      setAuth(user, accessToken)
-      toast.success('Login berhasil!')
-      router.push('/dashboard')
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err))
-    } finally {
-      setLoading(false)
+      await login(username.trim(), password)
+      const { user } = useAuthStore.getState()
+      if (user) {
+        router.replace('/dashboard')
+      }
+    } catch {
+      // error sudah ditangani di store (dipetakan ke `error`)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <div className="bg-primary rounded-xl p-3">
-              <Store className="text-primary-foreground w-7 h-7" />
+    <div className="min-h-screen flex">
+      {/* ============================================================
+          LEFT — Brand Panel (desktop only)
+          ============================================================ */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-1/2 p-12"
+        style={{
+          background: 'linear-gradient(135deg, #f97316 0%, #f59e0b 100%)',
+        }}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            <Store className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-white font-bold text-xl tracking-tight">
+            Waregos
+          </span>
+        </div>
+
+        {/* Headline */}
+        <div>
+          <h1 className="text-5xl font-bold text-white leading-tight mb-4">
+            Kelola toko dengan
+            <br />
+            lebih mudah.
+          </h1>
+          <p className="text-white/80 text-lg leading-relaxed max-w-md">
+            Catat transaksi, pantau stok, dan kelola hutang pelanggan — semua
+            dalam satu sistem yang simpel dan cepat.
+          </p>
+        </div>
+
+        {/* Feature pills */}
+        <div className="flex gap-4">
+          {[
+            { label: 'Transaksi', desc: 'POS terintegrasi' },
+            { label: 'Stok', desc: 'Pantau real-time' },
+            { label: 'Laporan', desc: 'Closing harian' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm flex-1"
+            >
+              <p className="text-white font-bold">{item.label}</p>
+              <p className="text-white/70 text-sm">{item.desc}</p>
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ============================================================
+          RIGHT — Login Form
+          ============================================================ */}
+      <div
+        className="flex-1 flex items-center justify-center p-6 lg:p-12"
+        style={{ background: 'var(--background)' }}
+      >
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-3 mb-8">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, #f97316, #f59e0b)',
+              }}
+            >
+              <Store className="w-5 h-5 text-white" />
+            </div>
+            <span
+              className="font-bold text-xl"
+              style={{ color: 'var(--foreground)' }}
+            >
+              Waregos
+            </span>
           </div>
-          <CardTitle className="text-2xl">Waregos</CardTitle>
-          <CardDescription>Sistem Manajemen Toko Kelontong</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              placeholder="Masukkan username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-              disabled={loading}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-            />
+
+          {/* Greeting */}
+          <div className="mb-8">
+            <h2
+              className="text-2xl font-bold mb-2"
+              style={{ color: 'var(--foreground)' }}
+            >
+              Selamat datang 👋
+            </h2>
+            <p style={{ color: 'var(--muted-foreground)' }}>
+              Masuk untuk melanjutkan ke dashboard
+            </p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Masukkan password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                disabled={loading}
-                autoComplete="new-password"
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1}
+
+          <form onSubmit={handleLogin} className="space-y-4" noValidate>
+            {/* Username */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="username"
+                className="text-sm font-medium"
+                style={{ color: 'var(--foreground)' }}
               >
-                {showPassword
-                  ? <EyeOff className="w-4 h-4" />
-                  : <Eye className="w-4 h-4" />
-                }
-              </button>
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="Masukkan username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all disabled:opacity-60"
+                style={{
+                  background: 'var(--muted)',
+                  border: '1.5px solid var(--border)',
+                  color: 'var(--foreground)',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#f97316'
+                  e.target.style.boxShadow = '0 0 0 3px rgb(249 115 22 / 0.1)'
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'var(--border)'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
             </div>
-          </div>
-          <Button
-            className="w-full"
-            onClick={handleLogin}
-            disabled={loading}
+
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Masukkan password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 pr-12 rounded-xl text-sm outline-none transition-all disabled:opacity-60"
+                  style={{
+                    background: 'var(--muted)',
+                    border: '1.5px solid var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#f97316'
+                    e.target.style.boxShadow = '0 0 0 3px rgb(249 115 22 / 0.1)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'var(--border)'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={
+                    showPassword
+                      ? 'Sembunyikan password'
+                      : 'Tampilkan password'
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors hover:opacity-80"
+                  style={{ color: 'var(--muted-foreground)' }}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                role="alert"
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--error-light)',
+                  color: 'var(--error)',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all mt-2"
+              style={{
+                background: !canSubmit
+                  ? 'var(--border)'
+                  : 'linear-gradient(135deg, #f97316, #f59e0b)',
+                color: !canSubmit ? 'var(--muted-foreground)' : '#ffffff',
+                cursor: !canSubmit ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Masuk…
+                </>
+              ) : (
+                <>
+                  Masuk <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <p
+            className="text-center text-xs mt-8"
+            style={{ color: 'var(--muted-foreground)' }}
           >
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? 'Masuk...' : 'Masuk'}
-          </Button>
-        </CardContent>
-      </Card>
+            Waregos v1.0 · Sistem Manajemen Toko Kelontong
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
