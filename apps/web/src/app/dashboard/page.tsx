@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react'
 import type { AxiosResponse } from 'axios'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, ShoppingCart, Package, DollarSign, Loader2 } from 'lucide-react'
+import {
+  TrendingUp, ShoppingCart, Package, DollarSign,
+  Loader2, AlertTriangle, BarChart3, ArrowUpRight,
+  Calendar, RefreshCw
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { formatRupiah } from '@/lib/format' // ← import formatRupiah
+import { formatRupiah } from '@/lib/format'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
+  ResponsiveContainer, AreaChart, Area,
+  XAxis, YAxis, Tooltip, CartesianGrid
 } from 'recharts'
 
-interface Summary {
-  date: string
+interface DailySummary {
   totalTransactions: number
   totalRevenue: number
   totalProfit: number
@@ -25,285 +27,441 @@ interface Summary {
 interface MonthlyDay {
   date: string
   totalRevenue: number
-  totalProfit: number
   totalTransactions: number
 }
 
-interface DeadStockItem {
+interface ExpiringProduct {
   id: string
   name: string
   stock: number
   unit: string
-  category: string | null
-  stockValue: number
-  daysSinceLastSold: number | null
+  expiryDate: string
+  daysLeft: number
   status: string
+}
+
+interface DeadStockProduct {
+  id: string
+  name: string
+  stock: number
+  unit: string
+  stockValue: number
+  status: string
+  daysSinceLastSold: number | null
 }
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
-  const isAdmin = user?.role === 'ADMIN' // <-- tentukan role admin
+  const isAdmin = user?.role === 'ADMIN'
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const now = new Date()
 
-  const [summary, setSummary] = useState<Summary | null>(null)
+  const [summary, setSummary] = useState<DailySummary | null>(null)
   const [monthly, setMonthly] = useState<MonthlyDay[]>([])
+  const [expiring, setExpiring] = useState<ExpiringProduct[]>([])
+  const [deadStock, setDeadStock] = useState<DeadStockProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [expiringSoon, setExpiringSoon] = useState<Array<{
-    id: string
-    name: string
-    stock: number
-    unit: string
-    expiryDate: string
-    daysLeft: number
-    status: string
-  }>>([])
-  const [deadStock, setDeadStock] = useState<DeadStockItem[]>([])
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+
+    try {
+      const requests: Promise<AxiosResponse>[] = [
+        api.get(`/reports/summary?date=${today}`),
+        api.get('/products/expiring-soon'),
+        api.get('/products/dead-stock'),
+      ]
+      if (isAdmin) {
+        requests.push(
+          api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
+        )
+      }
+
+      const results = await Promise.all(requests)
+      setSummary(results[0].data.data)
+      setExpiring(results[1].data.data ?? [])
+      setDeadStock(results[2].data.data ?? [])
+      if (isAdmin && results[3]) {
+        setMonthly(results[3].data.data.daily ?? [])
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    const today = format(new Date(), 'yyyy-MM-dd')
-    const now = new Date()
-
-    // Buat daftar request dasar (selalu dijalankan)
-    const requests: Promise<AxiosResponse>[] = [
-      api.get(`/reports/summary?date=${today}`),
-      api.get('/products/expiring-soon'),
-      api.get('/products/dead-stock'),
-    ]
-
-    // Tambahkan request bulanan hanya untuk admin
-    let monthlyIndex = -1
-    if (isAdmin) {
-      monthlyIndex = requests.length
-      requests.push(
-        api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
-      )
-    }
-
-    Promise.all(requests)
-      .then((results) => {
-        // summary selalu ada
-        setSummary(results[0].data.data)
-        setExpiringSoon(results[1].data.data ?? [])
-        setDeadStock(results[2].data.data ?? [])
-
-        // monthly hanya jika request dilakukan
-        if (isAdmin && monthlyIndex !== -1 && results[monthlyIndex]) {
-          setMonthly(results[monthlyIndex].data.data.daily ?? [])
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to load dashboard data:', error)
-      })
-      .finally(() => setLoading(false))
-  }, [isAdmin]) // tambahkan isAdmin sebagai dependency
+    const init = async () => { await fetchData() }
+    init()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
+          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+            Memuat dashboard...
+          </p>
+        </div>
       </div>
     )
   }
 
-  const cards = [
+  const summaryCards = [
     {
-      title: 'Transaksi Hari Ini',
-      value: summary?.totalTransactions ?? 0,
+      label: 'Transaksi Hari Ini',
+      value: `${summary?.totalTransactions ?? 0}`,
       sub: 'transaksi',
       icon: ShoppingCart,
-      color: 'text-blue-500',
+      color: '#3b82f6',
+      bg: 'rgba(59,130,246,0.1)',
     },
     {
-      title: 'Omzet Hari Ini',
+      label: 'Omzet Hari Ini',
       value: formatRupiah(summary?.totalRevenue ?? 0),
       sub: 'pendapatan',
       icon: DollarSign,
-      color: 'text-green-500',
+      color: '#22c55e',
+      bg: 'rgba(34,197,94,0.1)',
     },
     {
-      title: 'Profit Hari Ini',
+      label: 'Profit Hari Ini',
       value: formatRupiah(summary?.totalProfit ?? 0),
       sub: 'keuntungan bersih',
       icon: TrendingUp,
-      color: 'text-emerald-500',
+      color: '#f97316',
+      bg: 'rgba(249,115,22,0.1)',
     },
     {
-      title: 'Item Terjual',
-      value: summary?.totalItemsSold ?? 0,
+      label: 'Item Terjual',
+      value: `${summary?.totalItemsSold ?? 0}`,
       sub: 'item hari ini',
       icon: Package,
-      color: 'text-orange-500',
+      color: '#a855f7',
+      bg: 'rgba(168,85,247,0.1)',
     },
   ]
-
-  // Hitung total modal tertahan dari dead stock
-  const totalDeadStockValue = deadStock.reduce((sum, p) => sum + p.stockValue, 0)
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Selamat datang, {user?.name} · {format(new Date(), 'EEEE, d MMMM yyyy', { locale: id })}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+            Dashboard
+          </h1>
+          <div className="flex items-center gap-1.5 mt-1">
+            <Calendar className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Selamat datang, {user?.name} · {format(new Date(), 'EEEE, d MMMM yyyy', { locale: id })}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all"
+          style={{
+            background: 'var(--muted)',
+            color: 'var(--muted-foreground)',
+            border: '1px solid var(--border)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--primary-light)'
+            e.currentTarget.style.color = 'var(--primary)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--muted)'
+            e.currentTarget.style.color = 'var(--muted-foreground)'
+          }}
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {cards.map(({ title, value, sub, icon: Icon, color }) => (
-          <Card key={title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-              <Icon className={`w-4 h-4 ${color}`} />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{value}</p>
-              <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {summaryCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
+          <div
+            key={label}
+            className="rounded-2xl p-5 transition-all duration-200"
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = color
+              e.currentTarget.style.boxShadow = `0 4px 24px -4px ${color}25`
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+                {label}
+              </p>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: bg }}
+              >
+                <Icon className="w-4 h-4" style={{ color }} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold tracking-tight" style={{ color: 'var(--foreground)' }}>
+              {value}
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+              {sub}
+            </p>
+          </div>
         ))}
       </div>
 
-      {/* Expiry Alert */}
-      {expiringSoon.length > 0 && (
-        <Card className="border-orange-200 dark:border-orange-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-orange-600">
-              <Package className="w-4 h-4" />
-              Peringatan Produk ({expiringSoon.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* Alerts Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {/* Expiry Alert */}
+        {expiring.length > 0 && (
+          <div
+            className="rounded-2xl p-5"
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: 'rgba(239,68,68,0.1)' }}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                  Peringatan Produk
+                </p>
+              </div>
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+              >
+                {expiring.length}
+              </span>
+            </div>
             <div className="space-y-2">
-              {expiringSoon.map((p) => (
-                <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
+              {expiring.slice(0, 4).map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 rounded-xl px-3 transition-colors"
+                  style={{ background: 'var(--muted)' }}
+                >
                   <div>
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-muted-foreground ml-2">
-                      (stok: {p.stock} {p.unit})
-                    </span>
+                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {p.name}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      Stok: {p.stock} {p.unit}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(p.expiryDate), 'd MMM yyyy', { locale: id })}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      p.status === 'expired'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-orange-100 text-orange-700'
-                    }`}>
+                  <div className="text-right">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: p.status === 'expired'
+                          ? 'rgba(239,68,68,0.15)'
+                          : 'rgba(245,158,11,0.15)',
+                        color: p.status === 'expired' ? '#ef4444' : '#f59e0b',
+                      }}
+                    >
                       {p.status === 'expired' ? 'Kadaluarsa' : `${p.daysLeft} hari lagi`}
                     </span>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                      {format(new Date(p.expiryDate), 'd MMM yyyy', { locale: id })}
+                    </p>
                   </div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Dead Stock Alert */}
-      {deadStock.length > 0 && (
-        <Card className="border-yellow-200 dark:border-yellow-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-yellow-600">
-              <Package className="w-4 h-4" />
-              Dead Stock ({deadStock.length} produk — modal tertahan Rp {totalDeadStockValue.toLocaleString('id-ID')})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {deadStock.slice(0, 5).map((p) => (
-                <div key={p.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                  <div>
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-muted-foreground ml-2">
-                      ({p.stock} {p.unit})
-                    </span>
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    p.status === 'never_sold'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : p.status === 'critical'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-orange-100 text-orange-700'
-                  }`}>
-                    {p.status === 'never_sold'
-                      ? 'Belum pernah terjual'
-                      : p.status === 'critical'
-                        ? `${p.daysSinceLastSold} hari tidak terjual`
-                        : `${p.daysSinceLastSold} hari`
-                    }
-                  </span>
-                </div>
-              ))}
-              {deadStock.length > 5 && (
-                <p className="text-xs text-muted-foreground text-center pt-1">
-                  +{deadStock.length - 5} produk lainnya
+              {expiring.length > 4 && (
+                <p className="text-xs text-center pt-1" style={{ color: 'var(--muted-foreground)' }}>
+                  +{expiring.length - 4} produk lainnya
                 </p>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {/* Chart — hanya untuk admin dan jika ada data */}
-      {isAdmin && monthly.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Omzet Bulan Ini</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthly}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+        {/* Dead Stock */}
+        {deadStock.length > 0 && (
+          <div
+            className="rounded-2xl p-5"
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style={{ background: 'rgba(245,158,11,0.1)' }}
+                >
+                  <Package className="w-3.5 h-3.5" style={{ color: '#f59e0b' }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                  Dead Stock
+                </p>
+              </div>
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}
+              >
+                Modal Rp {deadStock.reduce((s, p) => s + p.stockValue, 0).toLocaleString('id-ID')}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {deadStock.slice(0, 4).map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between py-2 rounded-xl px-3"
+                  style={{ background: 'var(--muted)' }}
+                >
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      {p.name}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      {p.stock} {p.unit}
+                    </p>
+                  </div>
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: p.status === 'never_sold'
+                        ? 'rgba(245,158,11,0.15)'
+                        : 'rgba(239,68,68,0.15)',
+                      color: p.status === 'never_sold' ? '#f59e0b' : '#ef4444',
+                    }}
+                  >
+                    {p.status === 'never_sold'
+                      ? 'Belum pernah terjual'
+                      : `${p.daysSinceLastSold} hari`}
+                  </span>
+                </div>
+              ))}
+              {deadStock.length > 4 && (
+                <p className="text-xs text-center pt-1" style={{ color: 'var(--muted-foreground)' }}>
+                  +{deadStock.length - 4} produk lainnya
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Chart — Admin only */}
+      {isAdmin && (
+        <div
+          className="rounded-2xl p-5"
+          style={{
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(249,115,22,0.1)' }}
+              >
+                <BarChart3 className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                Omzet Bulan Ini
+              </p>
+            </div>
+            {monthly.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
+                <span className="text-xs font-medium" style={{ color: '#22c55e' }}>
+                  {formatRupiah(monthly.reduce((s, d) => s + d.totalRevenue, 0))} total
+                </span>
+              </div>
+            )}
+          </div>
+
+          {monthly.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-12 rounded-xl"
+              style={{ background: 'var(--muted)' }}
+            >
+              <BarChart3 className="w-8 h-8 mb-2" style={{ color: 'var(--muted-foreground)' }} />
+              <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                Belum ada data transaksi bulan ini
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={monthly} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="orangeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border)"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(v) => format(new Date(v), 'd MMM', { locale: id })}
-                  className="text-xs"
+                  tickFormatter={(v) => format(new Date(v), 'd', { locale: id })}
+                  tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  className="text-xs"
+                  tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
                 />
                 <Tooltip
-                  formatter={(value) => typeof value === 'number' ? formatRupiah(value) : ''}
-                  labelFormatter={(label) => format(new Date(label), 'd MMMM yyyy', { locale: id })}
+                  contentStyle={{
+                    background: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    color: 'var(--foreground)',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
+                  }}
+                  formatter={(value) => [formatRupiah(Number(value)), 'Omzet']}
+                  labelFormatter={(label) =>
+                    format(new Date(label), 'd MMMM yyyy', { locale: id })
+                  }
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="totalRevenue"
-                  name="Omzet"
-                  stroke="hsl(var(--primary))"
+                  stroke="#f97316"
                   strokeWidth={2}
+                  fill="url(#orangeGrad)"
                   dot={false}
+                  activeDot={{ r: 4, fill: '#f97316', stroke: 'var(--card)', strokeWidth: 2 }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="totalProfit"
-                  name="Profit"
-                  stroke="hsl(142 76% 36%)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Jika admin tetapi tidak ada data bulanan */}
-      {isAdmin && monthly.length === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Omzet Bulan Ini</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
-              Belum ada data transaksi bulan ini
-            </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
     </div>
   )
