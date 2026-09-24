@@ -198,16 +198,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
+
+          {/* Brand — SVG storefront */}
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
             >
-              <span className="text-xs text-white font-bold">W</span>
+              <svg
+                viewBox="0 0 64 64"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ width: '16px', height: '16px' }}
+              >
+                <path d="M8 26L32 12L56 26Z" fill="white" opacity="0.95" />
+                <rect x="14" y="26" width="36" height="26" rx="2" fill="white" opacity="0.95" />
+                <rect x="24" y="38" width="16" height="14" rx="2" fill="#f97316" />
+                <rect x="16" y="29" width="10" height="8" rx="1.5" fill="#f97316" opacity="0.7" />
+                <rect x="38" y="29" width="10" height="8" rx="1.5" fill="#f97316" opacity="0.7" />
+              </svg>
             </div>
-            <span className="font-bold text-sm" style={{ color: 'var(--foreground)' }}>
-              Waregos
-            </span>
+            <div>
+              <span className="font-bold text-sm" style={{ color: 'var(--foreground)' }}>
+                Waregos
+              </span>
+              <span className="text-xs ml-1.5" style={{ color: 'var(--muted-foreground)' }}>
+                Toko Rabay Orange
+              </span>
+            </div>
           </div>
         </header>
 

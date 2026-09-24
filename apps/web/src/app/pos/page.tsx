@@ -1,39 +1,34 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, getErrorMessage } from '@/lib/api'
-import { ProductDto } from '@waregos/types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue
-} from '@/components/ui/select'
-import {
-  Dialog, DialogContent, DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { formatRupiah, formatNumber, parseNumber } from '@/lib/format'
 import { toast } from 'sonner'
-import {
-  Plus, Minus, Trash2,
-  ShoppingCart, Banknote, CheckCircle2,
-  Loader2, ScanLine
-} from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { formatRupiah } from '@/lib/format' // ← import helper
+import {
+  Search, X, Plus, Minus, Trash2, CheckCircle2,
+  ShoppingCart, Loader2, CreditCard, Banknote,
+  Smartphone, Receipt, Clock, AlertCircle
+} from 'lucide-react'
+
+interface Product {
+  id: string
+  name: string
+  sellPrice: number
+  buyPrice: number | null
+  stock: number
+  unitSymbol: string
+  categoryName: string | null
+}
 
 interface CartItem {
   productId: string
   name: string
-  unitSymbol: string
   sellPrice: number
+  buyPrice: number | null
   quantity: number
-  stock: number
+  unitSymbol: string
 }
 
 interface Receipt {
@@ -47,134 +42,145 @@ interface Receipt {
   createdAt: string
 }
 
+type PaymentMethod = 'CASH' | 'QRIS' | 'DEBT'
+
+const PAYMENT_METHODS: {
+  key: PaymentMethod
+  label: string
+  icon: typeof Banknote
+  color: string
+}[] = [
+  { key: 'CASH', label: 'Tunai', icon: Banknote, color: '#22c55e' },
+  { key: 'QRIS', label: 'QRIS', icon: Smartphone, color: '#8b5cf6' },
+  { key: 'DEBT', label: 'Hutang', icon: CreditCard, color: '#f59e0b' },
+]
+
 export default function PosPage() {
-  const [products, setProducts] = useState<ProductDto[]>([])
-  const [search, setSearch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [searching, setSearching] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'QRIS' | 'DEBT'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
+  const [paidAmount, setPaidAmount] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerSuggestions, setCustomerSuggestions] = useState<string[]>([])
-  const [paidAmount, setPaidAmount] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [qrisConfirmed, setQrisConfirmed] = useState(false)
+  const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
-  const [receiptOpen, setReceiptOpen] = useState(false)
-  const searchRef = useRef<HTMLInputElement>(null)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const searchTimer = useRef<NodeJS.Timeout | null>(null)
+  const customerTimer = useRef<NodeJS.Timeout | null>(null)
 
-  // State untuk ConfirmDialog
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean
-    onConfirm: () => void
-  }>({ open: false, onConfirm: () => {} })
+  const totalAmount = cart.reduce((s, i) => s + i.sellPrice * i.quantity, 0)
+  const paidAmountNum = Number(parseNumber(paidAmount))
+  const change = paidAmountNum - totalAmount
+  const isMarginViolation = cart.some(
+    i => i.buyPrice !== null && i.sellPrice <= i.buyPrice
+  )
 
-  useEffect(() => {
-    searchRef.current?.focus()
+  // Search products
+  const searchProducts = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    try {
+      const res = await api.get('/products', { params: { search: q, limit: 8 } })
+      setSearchResults(res.data.data ?? [])
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
   }, [])
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await api.get('/products', {
-          params: { search, limit: 20 }
-        })
-        setProducts(res.data.data)
-      } catch (error) {
-        toast.error(getErrorMessage(error))
-      }
-    }
-    fetchProducts()
-  }, [search])
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => searchProducts(searchQuery), 300)
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
+  }, [searchQuery, searchProducts])
 
-  // Fetch customer suggestions for DEBT
+  // Customer autocomplete
   useEffect(() => {
     if (paymentMethod !== 'DEBT' || customerName.length < 2) {
-      const timer = setTimeout(() => setCustomerSuggestions([]), 0)
-      return () => clearTimeout(timer)
+      const t = setTimeout(() => setCustomerSuggestions([]), 0)
+      return () => clearTimeout(t)
     }
-    const timeout = setTimeout(async () => {
+    if (customerTimer.current) clearTimeout(customerTimer.current)
+    customerTimer.current = setTimeout(async () => {
       try {
         const res = await api.get('/debts/search', { params: { q: customerName } })
-        setCustomerSuggestions(res.data.data)
+        setCustomerSuggestions(res.data.data ?? [])
       } catch {
         setCustomerSuggestions([])
       }
     }, 300)
-    return () => clearTimeout(timeout)
+    return () => { if (customerTimer.current) clearTimeout(customerTimer.current) }
   }, [customerName, paymentMethod])
 
-  const addToCart = (product: ProductDto) => {
-    if (product.stock <= 0) {
-      toast.error(`Stok ${product.name} habis`)
-      return
-    }
-
-    setCart((prev) => {
-      const existing = prev.find((i) => i.productId === product.id)
+  const addToCart = (p: Product) => {
+    if (p.stock <= 0) { toast.error('Stok habis'); return }
+    setCart(prev => {
+      const existing = prev.find(i => i.productId === p.id)
       if (existing) {
-        if (existing.quantity >= product.stock) {
-          toast.error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`)
-          return prev
-        }
-        return prev.map((i) =>
-          i.productId === product.id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
+        if (existing.quantity >= p.stock) { toast.error('Stok tidak mencukupi'); return prev }
+        return prev.map(i => i.productId === p.id
+          ? { ...i, quantity: i.quantity + 1 }
+          : i
         )
       }
       return [...prev, {
-        productId: product.id,
-        name: product.name,
-        unitSymbol: product.unitSymbol,
-        sellPrice: product.sellPrice,
+        productId: p.id,
+        name: p.name,
+        sellPrice: p.sellPrice,
+        buyPrice: p.buyPrice,
         quantity: 1,
-        stock: product.stock,
+        unitSymbol: p.unitSymbol,
       }]
     })
-    setSearch('')
+    setSearchQuery('')
+    setSearchResults([])
     searchRef.current?.focus()
   }
 
   const updateQty = (productId: string, delta: number) => {
-    setCart((prev) =>
-      prev.map((i) => {
-        if (i.productId !== productId) return i
-        const newQty = i.quantity + delta
-        if (newQty <= 0) return i
-        if (newQty > i.stock) {
-          toast.error(`Stok tidak cukup (sisa: ${i.stock})`)
-          return i
-        }
-        return { ...i, quantity: newQty }
-      })
+    setCart(prev => prev
+      .map(i => i.productId === productId
+        ? { ...i, quantity: Math.max(0, i.quantity + delta) }
+        : i
+      )
+      .filter(i => i.quantity > 0)
     )
   }
 
   const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((i) => i.productId !== productId))
+    setCart(prev => prev.filter(i => i.productId !== productId))
   }
 
-  const clearCart = () => {
-    if (cart.length === 0) return
-    setConfirmDialog({
-      open: true,
-      onConfirm: () => {
-        setCart([])
-        setPaidAmount('')
-        setCustomerName('')
-        setConfirmDialog(prev => ({ ...prev, open: false }))
-      }
-    })
+  // Ganti metode bayar + reset state terkait (bukan via useEffect)
+  const handleSelectPaymentMethod = (method: PaymentMethod) => {
+    if (method === paymentMethod) return
+    setPaymentMethod(method)
+    setQrisConfirmed(false)   // reset setiap ganti metode
   }
 
-  const totalAmount = cart.reduce((sum, i) => sum + i.sellPrice * i.quantity, 0)
-  const changeAmount = Number(paidAmount) - totalAmount
+  const quickPay = (total: number): number[] => {
+    const vals = new Set([
+      total,
+      Math.ceil(total / 5000) * 5000,
+      Math.ceil(total / 10000) * 10000,
+      Math.ceil(total / 50000) * 50000,
+      Math.ceil(total / 100000) * 100000,
+    ])
+    return [...vals].filter(v => v >= total).sort((a, b) => a - b).slice(0, 4)
+  }
 
   const handleCheckout = async () => {
-    if (cart.length === 0) {
-      toast.error('Keranjang kosong')
-      return
-    }
-    if (paymentMethod === 'CASH' && (!paidAmount || Number(paidAmount) < totalAmount)) {
+    if (cart.length === 0) return
+    if (isMarginViolation) { toast.error('Ada produk dengan harga jual ≤ harga beli'); return }
+    if (paymentMethod === 'CASH' && paidAmountNum < totalAmount) {
       toast.error('Uang bayar kurang dari total')
       return
     }
@@ -182,25 +188,28 @@ export default function PosPage() {
       toast.error('Nama pelanggan wajib diisi untuk transaksi hutang')
       return
     }
+    if (paymentMethod === 'QRIS' && !qrisConfirmed) {
+      toast.error('Konfirmasi pembayaran QRIS terlebih dahulu')
+      return
+    }
 
-    setLoading(true)
+    setIsCheckingOut(true)
     try {
       const res = await api.post('/transactions', {
-        items: cart.map((i) => ({
+        items: cart.map(i => ({
           productId: i.productId,
           quantity: i.quantity,
           sellPrice: i.sellPrice,
         })),
         paymentMethod,
-        paidAmount: paymentMethod === 'CASH' ? Number(paidAmount) : 0,
+        paidAmount: paymentMethod === 'CASH' ? paidAmountNum : 0,
         customerName: paymentMethod === 'DEBT' ? customerName.trim() : undefined,
-        notes: undefined,
       })
 
       const trx = res.data.data
       setReceipt({
         invoiceNumber: trx.invoiceNumber,
-        items: cart,
+        items: [...cart],
         totalAmount: trx.totalAmount,
         paidAmount: trx.paidAmount,
         changeAmount: trx.changeAmount,
@@ -208,348 +217,609 @@ export default function PosPage() {
         customerName: paymentMethod === 'DEBT' ? customerName : undefined,
         createdAt: trx.createdAt,
       })
-      setReceiptOpen(true)
+      setLastSaved(format(new Date(), 'HH:mm:ss'))
       setCart([])
       setPaidAmount('')
       setCustomerName('')
-      toast.success('Transaksi berhasil!')
-      setLastSaved(new Date().toISOString())
-    } catch (error) {
-      toast.error(getErrorMessage(error))
+      setPaymentMethod('CASH')
+      setQrisConfirmed(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
     } finally {
-      setLoading(false)
+      setIsCheckingOut(false)
     }
   }
 
-  const quickPay = [
-    totalAmount,
-    Math.ceil(totalAmount / 5000) * 5000,
-    Math.ceil(totalAmount / 10000) * 10000,
-    Math.ceil(totalAmount / 50000) * 50000,
-  ].filter((v, i, arr) => arr.indexOf(v) === i && v >= totalAmount).slice(0, 4)
-
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Kasir / POS</h1>
-        <p className="text-muted-foreground text-sm mt-1">Input transaksi penjualan</p>
-      </div>
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-7rem)]">
 
-      {/* Last Transaction Marker */}
-      {lastSaved && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-green-50 dark:bg-green-950 px-3 py-2 rounded-lg">
-          <CheckCircle2 className="w-3 h-3 text-green-600 shrink-0" />
-          <span>
-            Transaksi terakhir tersimpan:{' '}
-            <span className="font-medium text-green-700 dark:text-green-400">
-              {format(new Date(lastSaved), 'HH:mm:ss', { locale: id })}
-            </span>
-          </span>
-        </div>
-      )}
+      {/* LEFT — Search + Cart */}
+      <div className="flex flex-col flex-1 min-w-0 gap-3">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Last saved marker */}
+        {lastSaved && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
+            style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)' }}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            Transaksi terakhir tersimpan: {lastSaved}
+          </div>
+        )}
 
-        {/* LEFT — Product Search */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="relative">
-            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+        {/* Search */}
+        <div className="relative">
+          <div
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+            style={{
+              background: 'var(--card)',
+              border: '1.5px solid var(--border)',
+            }}
+          >
+            {searching
+              ? <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+              : <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+            }
+            <input
               ref={searchRef}
-              className="pl-9 text-base"
+              type="text"
               placeholder="Cari produk atau scan barcode..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent text-sm outline-none"
+              style={{ color: 'var(--foreground)' }}
+              autoFocus
             />
+            {searchQuery && (
+              <button onClick={() => { setSearchQuery(''); setSearchResults([]) }}>
+                <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+              </button>
+            )}
           </div>
 
-          {/* Product Grid */}
-          {search && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {products.length === 0 ? (
-                <p className="col-span-3 text-center text-muted-foreground py-8 text-sm">
-                  Produk tidak ditemukan
-                </p>
-              ) : (
-                products.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => addToCart(p)}
-                    disabled={p.stock <= 0}
-                    className="text-left p-3 rounded-lg border bg-card hover:bg-accent hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <p className="font-medium text-sm leading-tight">{p.name}</p>
-                    <p className="text-primary font-bold text-sm mt-1">{formatRupiah(p.sellPrice)}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <Badge variant={p.stock <= p.minStock ? 'destructive' : 'secondary'} className="text-xs">
-                        {p.stock} {p.unitSymbol}
-                      </Badge>
+          {/* Search results dropdown */}
+          {searchResults.length > 0 && (
+            <div
+              className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20"
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              }}
+            >
+              {searchResults.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => addToCart(p)}
+                  disabled={p.stock <= 0}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors text-sm"
+                  style={{ borderBottom: '1px solid var(--border)' }}
+                  onMouseEnter={(e) => {
+                    if (p.stock > 0) e.currentTarget.style.background = 'var(--muted)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent'
+                  }}
+                >
+                  <div>
+                    <p className="font-medium" style={{
+                      color: p.stock <= 0 ? 'var(--muted-foreground)' : 'var(--foreground)'
+                    }}>
+                      {p.name}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                      Stok: {p.stock} {p.unitSymbol}
+                      {p.categoryName && ` · ${p.categoryName}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 ml-4">
+                    <p className="font-bold" style={{ color: 'var(--primary)' }}>
+                      {formatRupiah(p.sellPrice)}
+                    </p>
+                    {p.stock <= 0 && (
+                      <span className="text-xs" style={{ color: 'var(--error)' }}>Habis</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Cart */}
+        <div
+          className="flex-1 rounded-2xl overflow-hidden flex flex-col"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          {/* Cart header */}
+          <div
+            className="flex items-center justify-between px-4 py-3 shrink-0"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                Keranjang
+              </span>
+              {cart.length > 0 && (
+                <span
+                  className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'var(--primary)', color: '#fff' }}
+                >
+                  {cart.length}
+                </span>
+              )}
+            </div>
+            {cart.length > 0 && (
+              <button
+                onClick={() => setCart([])}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors"
+                style={{ color: 'var(--error)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--error-light)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <Trash2 className="w-3 h-3" />
+                Kosongkan
+              </button>
+            )}
+          </div>
+
+          {/* Cart items */}
+          <div className="flex-1 overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'var(--muted)' }}
+                >
+                  <ShoppingCart className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                    Keranjang kosong
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                    Cari produk di atas untuk memulai transaksi
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {cart.map((item) => {
+                  const isViolation = item.buyPrice !== null && item.sellPrice <= item.buyPrice
+                  return (
+                    <div
+                      key={item.productId}
+                      className="flex items-center gap-3 px-4 py-3"
+                      style={isViolation ? { background: 'rgba(239,68,68,0.05)' } : {}}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                            {item.name}
+                          </p>
+                          {isViolation && (
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--error)' }} />
+                          )}
+                        </div>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                          {formatRupiah(item.sellPrice)} / {item.unitSymbol}
+                        </p>
+                      </div>
+
+                      {/* Qty control */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => updateQty(item.productId, -1)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                          style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--muted)'}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span
+                          className="w-8 text-center text-sm font-bold"
+                          style={{ color: 'var(--foreground)' }}
+                        >
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQty(item.productId, 1)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                          style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'var(--muted)'}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Subtotal */}
+                      <div className="text-right shrink-0 min-w-20">
+                        <p className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+                          {formatRupiah(item.sellPrice * item.quantity)}
+                        </p>
+                      </div>
+
+                      {/* Remove */}
+                      <button
+                        onClick={() => removeFromCart(item.productId)}
+                        className="p-1.5 rounded-lg transition-colors shrink-0"
+                        style={{ color: 'var(--muted-foreground)' }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--error-light)'
+                          e.currentTarget.style.color = 'var(--error)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.color = 'var(--muted-foreground)'
+                        }}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT — Payment Panel */}
+      <div
+        className="flex flex-col shrink-0 rounded-2xl overflow-hidden"
+        style={{
+          width: '300px',
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {/* Total */}
+        <div
+          className="px-5 py-4 shrink-0"
+          style={{
+            background: 'linear-gradient(135deg, #f97316, #f59e0b)',
+          }}
+        >
+          <p className="text-sm text-white/80 mb-1">Total Belanja</p>
+          <p className="text-3xl font-bold text-white tracking-tight">
+            {formatRupiah(totalAmount)}
+          </p>
+          {cart.length > 0 && (
+            <p className="text-xs text-white/70 mt-1">
+              {cart.reduce((s, i) => s + i.quantity, 0)} item
+            </p>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {/* Payment method */}
+          <div>
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted-foreground)' }}>
+              METODE BAYAR
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map(({ key, label, icon: Icon, color }) => {
+                const isSelected = paymentMethod === key
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleSelectPaymentMethod(key)}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+                    style={{
+                      background: isSelected ? `${color}18` : 'var(--muted)',
+                      border: `1.5px solid ${isSelected ? color : 'transparent'}`,
+                      color: isSelected ? color : 'var(--muted-foreground)',
+                    }}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    {label}
                   </button>
-                ))
+                )
+              })}
+            </div>
+          </div>
+
+          {/* CASH input */}
+          {paymentMethod === 'CASH' && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted-foreground)' }}>
+                  UANG DITERIMA
+                </p>
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                  style={{
+                    background: 'var(--muted)',
+                    border: '1.5px solid var(--border)',
+                  }}
+                >
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={paidAmount}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setPaidAmount(raw ? formatNumber(raw) : '')
+                    }}
+                    className="flex-1 bg-transparent text-sm font-bold outline-none"
+                    style={{ color: 'var(--foreground)' }}
+                  />
+                </div>
+              </div>
+
+              {/* Quick pay */}
+              {totalAmount > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {quickPay(totalAmount).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setPaidAmount(formatNumber(String(v)))}
+                      className="text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all"
+                      style={{
+                        background: paidAmountNum === v ? 'var(--primary)' : 'var(--muted)',
+                        color: paidAmountNum === v ? '#fff' : 'var(--foreground)',
+                        border: `1px solid ${paidAmountNum === v ? 'var(--primary)' : 'var(--border)'}`,
+                      }}
+                    >
+                      {formatRupiah(v)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Change */}
+              {paidAmount && (
+                <div
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+                  style={{
+                    background: change >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${change >= 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                  }}
+                >
+                  <span className="text-sm font-medium" style={{
+                    color: change >= 0 ? '#22c55e' : '#ef4444'
+                  }}>
+                    Kembalian
+                  </span>
+                  <span className="text-sm font-bold" style={{
+                    color: change >= 0 ? '#22c55e' : '#ef4444'
+                  }}>
+                    {formatRupiah(Math.max(0, change))}
+                  </span>
+                </div>
               )}
             </div>
           )}
 
-          {/* Cart Table */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4" />
-                Keranjang
-                {cart.length > 0 && (
-                  <Badge>{cart.length} item</Badge>
-                )}
-              </CardTitle>
-              {cart.length > 0 && (
-                <Button variant="ghost" size="sm" className="text-destructive" onClick={clearCart}>
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Kosongkan
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              {cart.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-sm">
-                  Belum ada produk — cari produk di atas
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {cart.map((item) => (
-                    <div key={item.productId} className="flex items-center gap-3 py-2 border-b last:border-0">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{formatRupiah(item.sellPrice)} / {item.unitSymbol}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button size="icon" variant="outline" className="h-7 w-7"
-                          onClick={() => updateQty(item.productId, -1)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
-                        <Button size="icon" variant="outline" className="h-7 w-7"
-                          onClick={() => updateQty(item.productId, 1)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <p className="text-sm font-bold w-24 text-right">
-                        {formatRupiah(item.sellPrice * item.quantity)}
-                      </p>
-                      <Button size="icon" variant="ghost" className="text-destructive h-7 w-7"
-                        onClick={() => removeFromCart(item.productId)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
+          {/* QRIS confirm */}
+          {paymentMethod === 'QRIS' && (
+            <div
+              className="px-3 py-3 rounded-xl space-y-2"
+              style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)' }}
+            >
+              <p className="text-xs font-semibold" style={{ color: '#8b5cf6' }}>
+                KONFIRMASI QRIS
+              </p>
+              <p className="text-xs" style={{ color: '#8b5cf6' }}>
+                Pastikan notifikasi pembayaran QRIS sudah masuk sebelum menyelesaikan transaksi.
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={qrisConfirmed}
+                  onChange={(e) => setQrisConfirmed(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-violet-500"
+                />
+                <span className="text-xs font-medium" style={{ color: '#8b5cf6' }}>
+                  QRIS sudah diterima
+                </span>
+              </label>
+            </div>
+          )}
+
+          {/* DEBT customer */}
+          {paymentMethod === 'DEBT' && (
+            <div className="space-y-2 relative">
+              <p className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                NAMA PELANGGAN
+              </p>
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                style={{
+                  background: 'var(--muted)',
+                  border: '1.5px solid var(--border)',
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Bu Sari, Pak Budi..."
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: 'var(--foreground)' }}
+                />
+              </div>
+
+              {/* Autocomplete */}
+              {customerSuggestions.length > 0 && (
+                <div
+                  className="absolute left-0 right-0 rounded-xl overflow-hidden z-10"
+                  style={{
+                    background: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                    top: '100%',
+                    marginTop: '4px',
+                  }}
+                >
+                  {customerSuggestions.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => {
+                        setCustomerName(name)
+                        setCustomerSuggestions([])
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+                      style={{ color: 'var(--foreground)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {name}
+                    </button>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+
+              <div
+                className="px-3 py-2 rounded-xl text-xs text-center"
+                style={{
+                  background: 'rgba(245,158,11,0.1)',
+                  color: '#f59e0b',
+                }}
+              >
+                {formatRupiah(totalAmount)} akan dicatat sebagai hutang
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* RIGHT — Payment Panel */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Banknote className="w-4 h-4" />
-                Pembayaran
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Total */}
-              <div className="bg-muted rounded-lg p-4 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Total Belanja</p>
-                <p className="text-3xl font-bold">{formatRupiah(totalAmount)}</p>
-              </div>
-
-              {/* Payment Method */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Metode Bayar</p>
-                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as typeof paymentMethod)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CASH">💵 Tunai</SelectItem>
-                    <SelectItem value="TRANSFER">🏦 Transfer</SelectItem>
-                    <SelectItem value="QRIS">📱 QRIS</SelectItem>
-                    <SelectItem value="DEBT">📋 Hutang</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Customer name untuk DEBT */}
-              {paymentMethod === 'DEBT' && (
-                <div className="space-y-2 relative">
-                  <p className="text-sm font-medium">Nama Pelanggan *</p>
-                  <Input
-                    placeholder="Bu Sari, Pak Budi..."
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    autoComplete="off"
-                  />
-                  {customerSuggestions.length > 0 && (
-                    <div className="absolute z-10 w-full bg-card border rounded-lg shadow-lg">
-                      {customerSuggestions.map((name) => (
-                        <button
-                          key={name}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                          onClick={() => {
-                            setCustomerName(name)
-                            setCustomerSuggestions([])
-                          }}
-                        >
-                          {name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Cash Payment — hanya untuk CASH */}
-              {paymentMethod === 'CASH' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Uang Diterima</p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0"
-                      className="pl-9 text-lg font-bold"
-                      value={paidAmount ? paidAmount.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/\D/g, '')
-                        setPaidAmount(raw)
-                      }}
-                    />
-                  </div>
-                  {/* Quick Pay Buttons */}
-                  {totalAmount > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {quickPay.map((v) => (
-                        <Button
-                          key={v}
-                          variant="outline"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => setPaidAmount(String(v))}
-                        >
-                          {formatRupiah(v)}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* DEBT info */}
-              {paymentMethod === 'DEBT' && (
-                <div className="rounded-lg p-3 bg-orange-50 dark:bg-orange-950 text-center">
-                  <p className="text-xs text-muted-foreground">Total akan dicatat sebagai hutang</p>
-                  <p className="text-lg font-bold text-orange-600">{formatRupiah(totalAmount)}</p>
-                </div>
-              )}
-
-              {/* Change — hanya untuk CASH */}
-              {paymentMethod === 'CASH' && paidAmount && (
-                <div className={`rounded-lg p-3 text-center ${changeAmount >= 0 ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'}`}>
-                  <p className="text-xs text-muted-foreground">Kembalian</p>
-                  <p className={`text-xl font-bold ${changeAmount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {formatRupiah(Math.max(0, changeAmount))}
-                  </p>
-                </div>
-              )}
-
-              <Separator />
-
-              {/* Checkout Button */}
-              <Button
-                className="w-full h-12 text-base"
-                onClick={handleCheckout}
-                disabled={loading || cart.length === 0}
-              >
-                {loading
-                  ? <Loader2 className="w-5 h-5 animate-spin" />
-                  : <><CheckCircle2 className="w-5 h-5 mr-2" />Bayar Sekarang</>
-                }
-              </Button>
-            </CardContent>
-          </Card>
+        {/* Checkout button */}
+        <div className="px-4 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+          {isMarginViolation && (
+            <p className="text-xs text-center mb-2" style={{ color: 'var(--error)' }}>
+              ⚠️ Ada produk dengan harga jual ≤ harga beli
+            </p>
+          )}
+          <button
+            onClick={handleCheckout}
+            disabled={
+              isCheckingOut ||
+              cart.length === 0 ||
+              isMarginViolation ||
+              (paymentMethod === 'CASH' && paidAmountNum < totalAmount) ||
+              (paymentMethod === 'DEBT' && !customerName.trim()) ||
+              (paymentMethod === 'QRIS' && !qrisConfirmed)
+            }
+            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+            style={{
+              background: cart.length === 0 || isMarginViolation
+                ? 'var(--muted)'
+                : 'linear-gradient(135deg, #f97316, #f59e0b)',
+              color: cart.length === 0 || isMarginViolation ? 'var(--muted-foreground)' : '#fff',
+              cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isCheckingOut
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <CheckCircle2 className="w-4 h-4" />
+            }
+            {isCheckingOut ? 'Memproses...' : 'Bayar Sekarang'}
+          </button>
         </div>
       </div>
 
       {/* Receipt Dialog */}
-      <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="w-5 h-5" />
-              Transaksi Berhasil!
-            </DialogTitle>
-          </DialogHeader>
-          {receipt && (
-            <div className="space-y-3 text-sm">
-              <div className="text-center py-2 border-b">
-                <p className="font-mono text-xs text-muted-foreground">{receipt.invoiceNumber}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {new Date(receipt.createdAt).toLocaleString('id-ID')}
-                </p>
+      {receipt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setReceipt(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Receipt header */}
+            <div
+              className="px-6 py-5 text-center"
+              style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+            >
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
-              <div className="space-y-1">
+              <p className="text-white font-bold text-lg">Transaksi Berhasil!</p>
+              <p className="text-white/80 text-xs mt-1 font-mono">{receipt.invoiceNumber}</p>
+            </div>
+
+            <div className="px-6 py-4 space-y-3">
+              {/* Time */}
+              <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                <Clock className="w-3 h-3" />
+                {format(new Date(receipt.createdAt), 'd MMM yyyy, HH:mm:ss', { locale: id })}
+              </div>
+
+              {/* Items */}
+              <div className="space-y-2">
                 {receipt.items.map((item) => (
-                  <div key={item.productId} className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      {item.name} x{item.quantity}
+                  <div key={item.productId} className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--muted-foreground)' }}>
+                      {item.name} ×{item.quantity}
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium" style={{ color: 'var(--foreground)' }}>
                       {formatRupiah(item.sellPrice * item.quantity)}
                     </span>
                   </div>
                 ))}
               </div>
-              <Separator />
-              <div className="space-y-1">
-                <div className="flex justify-between font-bold">
-                  <span>Total</span>
-                  <span>{formatRupiah(receipt.totalAmount)}</span>
+
+              <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '12px' }} className="space-y-2">
+                <div className="flex justify-between text-sm font-bold">
+                  <span style={{ color: 'var(--foreground)' }}>Total</span>
+                  <span style={{ color: 'var(--foreground)' }}>{formatRupiah(receipt.totalAmount)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Bayar ({receipt.paymentMethod})</span>
-                  <span>{formatRupiah(receipt.paidAmount)}</span>
-                </div>
+
                 {receipt.paymentMethod === 'CASH' && (
-                  <div className="flex justify-between text-green-600 font-bold">
-                    <span>Kembalian</span>
-                    <span>{formatRupiah(receipt.changeAmount)}</span>
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: 'var(--muted-foreground)' }}>Bayar (Tunai)</span>
+                      <span style={{ color: 'var(--foreground)' }}>{formatRupiah(receipt.paidAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-bold">
+                      <span style={{ color: '#22c55e' }}>Kembalian</span>
+                      <span style={{ color: '#22c55e' }}>{formatRupiah(receipt.changeAmount)}</span>
+                    </div>
+                  </>
+                )}
+
+                {receipt.paymentMethod === 'DEBT' && (
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: '#f59e0b' }}>Hutang atas nama</span>
+                    <span className="font-bold" style={{ color: '#f59e0b' }}>{receipt.customerName}</span>
                   </div>
                 )}
-                {receipt.paymentMethod === 'DEBT' && (
-                  <div className="flex justify-between text-orange-600 font-bold">
-                    <span>Hutang atas nama</span>
-                    <span>{receipt.customerName}</span>
+
+                {receipt.paymentMethod === 'QRIS' && (
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: '#8b5cf6' }}>QRIS</span>
+                    <span className="font-bold" style={{ color: '#8b5cf6' }}>{formatRupiah(receipt.totalAmount)}</span>
                   </div>
                 )}
               </div>
-              <Button className="w-full mt-2" onClick={() => setReceiptOpen(false)}>
-                Transaksi Baru
-              </Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        open={confirmDialog.open}
-        title="Kosongkan Keranjang"
-        description="Semua item di keranjang akan dihapus. Lanjutkan?"
-        confirmLabel="Ya, Kosongkan"
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
-      />
+            <div className="px-6 pb-5">
+              <button
+                onClick={() => setReceipt(null)}
+                className="w-full py-3 rounded-xl font-bold text-sm text-white transition-all"
+                style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+              >
+                <Receipt className="w-4 h-4 inline mr-2" />
+                Transaksi Baru
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

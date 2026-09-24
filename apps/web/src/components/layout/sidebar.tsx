@@ -7,7 +7,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import {
   LayoutDashboard, ShoppingCart, Package, TrendingUp,
   ShoppingBag, BookCheck, CreditCard, Users,
-  ShieldCheck, Store, LogOut, ChevronRight,
+  ShieldCheck, LogOut, ChevronRight,
   PanelLeft, PanelLeftClose
 } from 'lucide-react'
 
@@ -59,7 +59,7 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           gap: '10px',
         }}
       >
-        {/* Logo */}
+        {/* Logo — SVG storefront */}
         <div
           className="shrink-0 flex items-center justify-center rounded-xl"
           style={{
@@ -69,7 +69,19 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
             background: 'linear-gradient(135deg, #f97316, #f59e0b)',
           }}
         >
-          <Store className="w-4 h-4 text-white" />
+          <svg
+            viewBox="0 0 64 64"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ width: '20px', height: '20px' }}
+          >
+            <path d="M8 26L32 12L56 26Z" fill="white" opacity="0.95" />
+            <rect x="14" y="26" width="36" height="26" rx="2" fill="white" opacity="0.95" />
+            <rect x="24" y="38" width="16" height="14" rx="2" fill="#f97316" />
+            <rect x="16" y="29" width="10" height="8" rx="1.5" fill="#f97316" opacity="0.7" />
+            <rect x="38" y="29" width="10" height="8" rx="1.5" fill="#f97316" opacity="0.7" />
+            <rect x="10" y="23" width="44" height="5" rx="1" fill="white" opacity="0.6" />
+          </svg>
         </div>
 
         {/* Brand text */}
@@ -89,7 +101,7 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           <p className="text-xs truncate"
             style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}
           >
-            Toko Kelontong
+            Toko Rabay Orange
           </p>
         </div>
 

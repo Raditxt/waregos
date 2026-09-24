@@ -26,17 +26,11 @@ const jetbrainsMono = JetBrains_Mono({
    METADATA
    ============================================================ */
 export const metadata: Metadata = {
-  title: {
-    default: 'Waregos — Manajemen Toko Kelontong',
-    template: '%s · Waregos',
-  },
-  description:
-    'Sistem manajemen toko kelontong modern untuk operasional harian — stok, kasir, dan laporan dalam satu tempat.',
-  applicationName: 'Waregos',
-  keywords: ['toko kelontong', 'POS', 'manajemen stok', 'kasir', 'Waregos'],
-  authors: [{ name: 'Waregos' }],
+  title: 'Waregos',
+  description: 'Sistem manajemen toko kelontong untuk Toko Rabay Orange',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.svg',
+    apple: '/icon.svg',
   },
 }
 
