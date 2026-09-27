@@ -2,23 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api, getErrorMessage } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogFooter
-} from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
+import { formatRupiah } from '@/lib/format'
 import { toast } from 'sonner'
-import {
-  Plus, Loader2, CreditCard,
-  ArrowUpCircle, ArrowDownCircle, History
-} from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { formatRupiah} from '@/lib/format' // ← import helper
+import {
+  Plus, Loader2, CreditCard, ArrowUpCircle,
+  ArrowDownCircle, X, Loader2 as SpinIcon
+} from 'lucide-react'
 
 interface DebtSummary {
   customerName: string
@@ -47,18 +38,18 @@ export default function DebtsPage() {
   const [totalDebt, setTotalDebt] = useState(0)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
-
   const [addDebtOpen, setAddDebtOpen] = useState(false)
+  const [paymentOpen, setPaymentOpen] = useState(false)
   const [debtForm, setDebtForm] = useState({ customerName: '', amount: '', notes: '' })
+  const [paymentForm, setPaymentForm] = useState({ customerName: '', amount: '', notes: '' })
   const [saving, setSaving] = useState(false)
 
-  const [paymentOpen, setPaymentOpen] = useState(false)
-  const [paymentForm, setPaymentForm] = useState({ customerName: '', amount: '', notes: '' })
+  const totalOutstanding = debts.reduce((s, d) => s + d.totalDebt, 0)
 
   const fetchDebts = useCallback(async () => {
     try {
       const res = await api.get('/debts')
-      setDebts(res.data.data)
+      setDebts(res.data.data ?? [])
     } catch {
       toast.error('Gagal memuat data hutang')
     } finally {
@@ -69,8 +60,7 @@ export default function DebtsPage() {
   useEffect(() => {
     const init = async () => { await fetchDebts() }
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [fetchDebts])
 
   const openHistory = async (customerName: string) => {
     setSelectedCustomer(customerName)
@@ -78,8 +68,8 @@ export default function DebtsPage() {
     setHistoryLoading(true)
     try {
       const res = await api.get(`/debts/${encodeURIComponent(customerName)}`)
-      setHistory(res.data.data.history)
-      setTotalDebt(res.data.data.totalDebt)
+      setHistory(res.data.data.history ?? [])
+      setTotalDebt(res.data.data.totalDebt ?? 0)
     } catch {
       toast.error('Gagal memuat riwayat hutang')
     } finally {
@@ -136,285 +126,399 @@ export default function DebtsPage() {
     }
   }
 
-  const totalOutstanding = debts.reduce((s, d) => s + d.totalDebt, 0)
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CreditCard className="w-6 h-6" />
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
             Hutang Pelanggan
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {debts.length} pelanggan · Total outstanding{' '}
-            <span className="font-medium text-red-600">{formatRupiah(totalOutstanding)}</span>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+            {debts.length} pelanggan · Total{' '}
+            <span className="font-semibold" style={{ color: '#ef4444' }}>
+              {formatRupiah(totalOutstanding)}
+            </span>
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setPaymentOpen(true)}>
-            <ArrowDownCircle className="w-4 h-4 mr-2 text-green-600" />
+          <button
+            onClick={() => setPaymentOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all"
+            style={{
+              background: 'rgba(34,197,94,0.1)',
+              color: '#22c55e',
+              border: '1px solid rgba(34,197,94,0.2)',
+            }}
+          >
+            <ArrowDownCircle className="w-4 h-4" />
             Catat Bayar
-          </Button>
-          <Button onClick={() => setAddDebtOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+          </button>
+          <button
+            onClick={() => setAddDebtOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+          >
+            <Plus className="w-4 h-4" />
             Catat Hutang
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* List */}
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : debts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-          <CreditCard className="w-12 h-12" />
-          <p className="font-medium">Tidak ada hutang outstanding</p>
-          <p className="text-sm text-center max-w-sm">
-            Catat hutang pelanggan dengan klik 
-            <span className="font-medium text-foreground"> Catat Hutang </span>
-            atau langsung dari halaman Kasir dengan metode bayar 
-            <span className="font-medium text-foreground"> Hutang</span>.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {debts.map((d) => (
-            <Card key={d.customerName}>
-              <CardContent className="flex items-center justify-between py-4">
-                {/* Info pelanggan */}
-                <div className="flex-1 min-w-0 mr-4">
-                  <p className="font-semibold text-base truncate">{d.customerName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {d.transactionCount} transaksi · Terakhir{' '}
-                    {format(new Date(d.lastActivity), 'd MMM yyyy', { locale: id })}
-                  </p>
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      >
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--primary)' }} />
+          </div>
+        ) : debts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'var(--muted)' }}>
+              <CreditCard className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                Tidak ada hutang outstanding
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                Catat hutang pelanggan dengan klik Catat Hutang atau dari Kasir dengan metode bayar Hutang.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {debts.map((d) => (
+              <button
+                key={d.customerName}
+                onClick={() => openHistory(d.customerName)}
+                className="w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors"
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold"
+                    style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}
+                  >
+                    {d.customerName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                      {d.customerName}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                      {d.transactionCount} transaksi · Terakhir{' '}
+                      {format(new Date(d.lastActivity), 'd MMM yyyy', { locale: id })}
+                    </p>
+                  </div>
                 </div>
-
-                {/* Jumlah hutang */}
-                <div className="text-right mr-3 shrink-0">
-                  <p className="text-lg font-bold text-red-600 whitespace-nowrap">
+                <div className="text-right">
+                  <p className="text-base font-bold" style={{ color: '#ef4444' }}>
                     {formatRupiah(d.totalDebt)}
                   </p>
-                  <p className="text-xs text-muted-foreground">belum lunas</p>
+                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>belum lunas</p>
                 </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-                {/* Tombol history — terpisah dari card */}
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="shrink-0"
-                  onClick={() => openHistory(d.customerName)}
-                  title="Lihat riwayat hutang"
-                >
-                  <History className="w-4 h-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* History Dialog */}
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>{selectedCustomer}</DialogTitle>
-            {/* Total hutang di bawah nama, tidak bertabrakan dengan X */}
-            <div className="flex items-center justify-between pt-1">
-              <p className="text-sm text-muted-foreground">Total hutang</p>
-              <p className="text-xl font-bold text-red-600">{formatRupiah(totalDebt)}</p>
+      {/* History Bottom Sheet */}
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div
+            className="w-full lg:max-w-lg rounded-t-2xl lg:rounded-2xl max-h-[85vh] flex flex-col"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar — mobile only */}
+            <div className="flex justify-center pt-3 pb-1 lg:hidden">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
             </div>
-          </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {historyLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4 shrink-0"
+              style={{ borderBottom: '1px solid var(--border)' }}
+            >
+              <div>
+                <p className="text-base font-bold" style={{ color: 'var(--foreground)' }}>
+                  {selectedCustomer}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                  Total hutang:{' '}
+                  <span className="font-bold" style={{ color: '#ef4444' }}>
+                    {formatRupiah(totalDebt)}
+                  </span>
+                </p>
               </div>
-            ) : (
-              <>
-                {/* Quick pay */}
-                {totalDebt > 0 && (
-                  <Button className="w-full" variant="outline" onClick={() => {
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="p-1.5 rounded-lg"
+                style={{ color: 'var(--muted-foreground)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick pay button */}
+            {totalDebt > 0 && (
+              <div className="px-5 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                <button
+                  onClick={() => {
                     setHistoryOpen(false)
                     setPaymentForm({
                       customerName: selectedCustomer ?? '',
                       amount: '',
-                      notes: 'Bayar hutang'
+                      notes: 'Bayar hutang',
                     })
                     setPaymentOpen(true)
-                  }}>
-                    <ArrowDownCircle className="w-4 h-4 mr-2 text-green-600" />
-                    Catat Pembayaran
-                  </Button>
-                )}
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: 'rgba(34,197,94,0.1)',
+                    color: '#22c55e',
+                    border: '1px solid rgba(34,197,94,0.2)',
+                  }}
+                >
+                  <ArrowDownCircle className="w-4 h-4" />
+                  Catat Pembayaran
+                </button>
+              </div>
+            )}
 
-                <Separator />
-
-                {/* Timeline */}
-                {history.map((h) => (
-                  <div key={h.id} className={`rounded-lg p-3 ${
-                    h.type === 'DEBT'
-                      ? 'bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900'
-                      : 'bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900'
-                  }`}>
-                    <div className="flex items-start gap-3">
-                      {/* Icon */}
-                      <div className="shrink-0 mt-0.5">
-                        {h.type === 'DEBT'
-                          ? <ArrowUpCircle className="w-4 h-4 text-red-500" />
-                          : <ArrowDownCircle className="w-4 h-4 text-green-600" />
-                        }
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">
-                          {h.type === 'DEBT' ? 'Ambil hutang' : 'Bayar hutang'}
-                        </p>
-                        {h.notes && (
-                          <p className="text-xs text-muted-foreground">{h.notes}</p>
-                        )}
-                        {h.items && h.items.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
-                            {h.items.map((item, i) => (
-                              <p key={i} className="text-xs text-muted-foreground">
-                                • {item.name} ×{item.quantity} = {formatRupiah(item.price * item.quantity)}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(h.createdAt), 'd MMM yyyy, HH:mm', { locale: id })}
-                          {' '}· {h.createdBy}
-                        </p>
-                      </div>
-
-                      {/* Amount */}
-                      <div className="shrink-0 text-right">
-                        <p className={`font-bold text-sm whitespace-nowrap ${
-                          h.type === 'DEBT' ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {h.type === 'DEBT' ? '+' : '-'}{formatRupiah(h.amount)}
-                        </p>
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">
-                          sisa {formatRupiah(h.balance)}
-                        </p>
+            {/* History list */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {historyLoading ? (
+                <div className="flex justify-center py-8">
+                  <SpinIcon className="w-5 h-5 animate-spin" style={{ color: 'var(--primary)' }} />
+                </div>
+              ) : history.length === 0 ? (
+                <p className="text-center text-sm py-8" style={{ color: 'var(--muted-foreground)' }}>
+                  Belum ada riwayat
+                </p>
+              ) : (
+                history.map((h) => {
+                  const isDebt = h.type === 'DEBT'
+                  return (
+                    <div
+                      key={h.id}
+                      className="rounded-xl p-3"
+                      style={{
+                        background: isDebt ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
+                        border: `1px solid ${isDebt ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}`,
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="shrink-0 mt-0.5">
+                          {isDebt
+                            ? <ArrowUpCircle className="w-4 h-4" style={{ color: '#ef4444' }} />
+                            : <ArrowDownCircle className="w-4 h-4" style={{ color: '#22c55e' }} />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                            {isDebt ? 'Ambil hutang' : 'Bayar hutang'}
+                          </p>
+                          {h.notes && (
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                              {h.notes}
+                            </p>
+                          )}
+                          {h.items && h.items.length > 0 && (
+                            <div className="mt-1 space-y-0.5">
+                              {h.items.map((item, i) => (
+                                <p key={i} className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                                  • {item.name} ×{item.quantity} = {formatRupiah(item.price * item.quantity)}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                            {format(new Date(h.createdAt), 'd MMM yyyy, HH:mm', { locale: id })} · {h.createdBy}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold" style={{ color: isDebt ? '#ef4444' : '#22c55e' }}>
+                            {isDebt ? '+' : '-'}{formatRupiah(h.amount)}
+                          </p>
+                          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                            sisa {formatRupiah(h.balance)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </>
-            )}
+                  )
+                })
+              )}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Add Debt Dialog */}
-      <Dialog open={addDebtOpen} onOpenChange={setAddDebtOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Catat Hutang Baru</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Nama Pelanggan *</Label>
-              <Input
-                placeholder="Bu Sari, Pak Budi, dll"
-                value={debtForm.customerName}
-                onChange={(e) => setDebtForm({ ...debtForm, customerName: e.target.value })}
-              />
+      {addDebtOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setAddDebtOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <p className="font-bold" style={{ color: 'var(--foreground)' }}>Catat Hutang Baru</p>
+              <button onClick={() => setAddDebtOpen(false)} style={{ color: 'var(--muted-foreground)' }}>
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="space-y-2">
-              <Label>Total Hutang *</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
-                <Input
+            <div className="px-5 py-4 space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>NAMA PELANGGAN *</label>
+                <input
                   type="text"
-                  inputMode="numeric"
-                  placeholder="0"
-                  className="pl-9"
-                  value={debtForm.amount}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\D/g, '')
-                    setDebtForm({ ...debtForm, amount: raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') })
-                  }}
+                  placeholder="Bu Sari, Pak Budi..."
+                  value={debtForm.customerName}
+                  onChange={(e) => setDebtForm({ ...debtForm, customerName: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: 'var(--muted)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>TOTAL HUTANG *</label>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
+                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={debtForm.amount}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setDebtForm({ ...debtForm, amount: raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') })
+                    }}
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    style={{ color: 'var(--foreground)' }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>CATATAN (OPSIONAL)</label>
+                <input
+                  type="text"
+                  placeholder="Indomie 2, Aqua 1..."
+                  value={debtForm.notes}
+                  onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: 'var(--muted)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Catatan (opsional)</Label>
-              <Input
-                placeholder="Indomie 2, Aqua 1, dll"
-                value={debtForm.notes}
-                onChange={(e) => setDebtForm({ ...debtForm, notes: e.target.value })}
-              />
+            <div className="flex gap-3 px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={() => setAddDebtOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}>
+                Batal
+              </button>
+              <button
+                onClick={handleAddDebt}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+              >
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                Catat Hutang
+              </button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDebtOpen(false)}>Batal</Button>
-            <Button onClick={handleAddDebt} disabled={saving}>
-              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Catat Hutang
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
 
       {/* Payment Dialog */}
-      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Catat Pembayaran Hutang</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Nama Pelanggan *</Label>
-              <Input
-                placeholder="Bu Sari, Pak Budi, dll"
-                value={paymentForm.customerName}
-                onChange={(e) => setPaymentForm({ ...paymentForm, customerName: e.target.value })}
-              />
+      {paymentOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setPaymentOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <p className="font-bold" style={{ color: 'var(--foreground)' }}>Catat Pembayaran</p>
+              <button onClick={() => setPaymentOpen(false)} style={{ color: 'var(--muted-foreground)' }}>
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div className="space-y-2">
-              <Label>Jumlah Bayar *</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
-                <Input
+            <div className="px-5 py-4 space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>NAMA PELANGGAN *</label>
+                <input
                   type="text"
-                  inputMode="numeric"
-                  placeholder="0"
-                  className="pl-9"
-                  value={paymentForm.amount}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\D/g, '')
-                    setPaymentForm({ ...paymentForm, amount: raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') })
-                  }}
+                  placeholder="Bu Sari, Pak Budi..."
+                  value={paymentForm.customerName}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, customerName: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: 'var(--muted)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>JUMLAH BAYAR *</label>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
+                  <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={paymentForm.amount}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setPaymentForm({ ...paymentForm, amount: raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') })
+                    }}
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    style={{ color: 'var(--foreground)' }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>CATATAN (OPSIONAL)</label>
+                <input
+                  type="text"
+                  placeholder="Bayar sebagian, lunas..."
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: 'var(--muted)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Catatan (opsional)</Label>
-              <Input
-                placeholder="Bayar sebagian, lunas, dll"
-                value={paymentForm.notes}
-                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-              />
+            <div className="flex gap-3 px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={() => setPaymentOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-medium" style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}>
+                Batal
+              </button>
+              <button
+                onClick={handlePayment}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                style={{ background: 'rgba(34,197,94,0.9)' }}
+              >
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                Catat Pembayaran
+              </button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentOpen(false)}>Batal</Button>
-            <Button onClick={handlePayment} disabled={saving}>
-              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Catat Pembayaran
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   )
 }

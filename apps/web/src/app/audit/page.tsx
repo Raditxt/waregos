@@ -2,18 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import {
-  Table, TableBody, TableCell,
-  TableHead, TableHeader, TableRow
-} from '@/components/ui/table'
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue
-} from '@/components/ui/select'
-// import { Badge } from '@/components/ui/badge'  <-- dihapus karena tidak digunakan
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -33,20 +21,70 @@ interface ActivityLog {
 
 interface ActionOption { value: string; label: string }
 
-const ACTION_COLORS: Record<string, string> = {
-  LOGIN: 'bg-blue-100 text-blue-700',
-  LOGOUT: 'bg-gray-100 text-gray-700',
-  CHANGE_PASSWORD: 'bg-yellow-100 text-yellow-700',
-  RESET_PASSWORD: 'bg-orange-100 text-orange-700',
-  CREATE_PRODUCT: 'bg-green-100 text-green-700',
-  UPDATE_PRODUCT: 'bg-teal-100 text-teal-700',
-  DELETE_PRODUCT: 'bg-red-100 text-red-700',
-  CREATE_TRANSACTION: 'bg-purple-100 text-purple-700',
-  CANCEL_TRANSACTION: 'bg-red-100 text-red-700',
-  CREATE_PURCHASE: 'bg-indigo-100 text-indigo-700',
-  CREATE_USER: 'bg-green-100 text-green-700',
-  UPDATE_USER: 'bg-teal-100 text-teal-700',
-  ADJUST_STOCK: 'bg-orange-100 text-orange-700',
+/* Map aksi ke kelas badge semantic yang sudah didefinisikan di globals.css
+   (.badge-primary / .badge-accent / .badge-success / .badge-error /
+    .badge-warning / .badge-info / .badge-neutral) */
+const ACTION_BADGE_CLASS: Record<string, string> = {
+  LOGIN: 'badge-info',
+  LOGOUT: 'badge-neutral',
+  CHANGE_PASSWORD: 'badge-warning',
+  RESET_PASSWORD: 'badge-accent',
+  CREATE_PRODUCT: 'badge-success',
+  UPDATE_PRODUCT: 'badge-info',
+  DELETE_PRODUCT: 'badge-error',
+  CREATE_TRANSACTION: 'badge-primary',
+  CANCEL_TRANSACTION: 'badge-error',
+  CREATE_PURCHASE: 'badge-accent',
+  CREATE_USER: 'badge-success',
+  UPDATE_USER: 'badge-info',
+  ADJUST_STOCK: 'badge-warning',
+}
+
+const inputStyle: React.CSSProperties = {
+  background: 'var(--background)',
+  border: '1px solid var(--input)',
+  color: 'var(--foreground)',
+}
+
+function PrimaryButton({
+  onClick, disabled, children,
+}: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-60"
+      style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--primary-hover)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--primary)' }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function OutlineButton({
+  onClick, disabled, children,
+}: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+      style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}
+      onMouseEnter={(e) => {
+        if (disabled) return
+        e.currentTarget.style.background = 'var(--primary-light)'
+        e.currentTarget.style.color = 'var(--primary)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'var(--muted)'
+        e.currentTarget.style.color = 'var(--muted-foreground)'
+      }}
+    >
+      {children}
+    </button>
+  )
 }
 
 export default function AuditPage() {
@@ -58,7 +96,6 @@ export default function AuditPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
-  // Filters
   const [selectedAction, setSelectedAction] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState(today)
@@ -85,13 +122,13 @@ export default function AuditPage() {
     const init = async () => {
       const [actionsRes] = await Promise.all([
         api.get('/audit/actions'),
-        fetchLogs(), // fetchLogs sudah async, akan dijalankan paralel
+        fetchLogs(),
       ])
       setActions(actionsRes.data.data)
     }
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Hanya dijalankan sekali saat mount
+  }, [])
 
   const formatDetails = (details: Record<string, unknown> | null): string => {
     if (!details) return '—'
@@ -100,145 +137,163 @@ export default function AuditPage() {
       .join(', ')
   }
 
+  const handleReset = () => {
+    setSelectedAction('')
+    setDateFrom('')
+    setDateTo(today)
+    setTimeout(() => fetchLogs(1), 100)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6" />
-          Activity Log
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Riwayat semua aktivitas pengguna — {total} total log
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+            Activity Log
+          </h1>
+          <div className="flex items-center gap-1.5 mt-1">
+            <ShieldCheck className="w-3.5 h-3.5" style={{ color: 'var(--muted-foreground)' }} />
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+              Riwayat semua aktivitas pengguna — {total} total log
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
+      <div
+        className="rounded-2xl p-4 flex flex-wrap items-center gap-3"
+        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      >
+        <select
+          className="rounded-lg px-3 py-2 text-sm outline-none focus-warm w-48"
+          style={inputStyle}
           value={selectedAction}
-          onValueChange={setSelectedAction}
+          onChange={(e) => setSelectedAction(e.target.value)}
         >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Semua aksi" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Semua aksi</SelectItem>
-            {actions.map(a => (
-              <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Semua aksi</option>
+          {actions.map((a) => (
+            <option key={a.value} value={a.value}>{a.label}</option>
+          ))}
+        </select>
 
-        <Input
+        <input
           type="date"
-          className="w-40"
+          className="rounded-lg px-3 py-2 text-sm outline-none focus-warm w-40"
+          style={inputStyle}
           value={dateFrom}
           max={today}
-          placeholder="Dari tanggal"
           onChange={(e) => setDateFrom(e.target.value)}
         />
-        <Input
+        <input
           type="date"
-          className="w-40"
+          className="rounded-lg px-3 py-2 text-sm outline-none focus-warm w-40"
+          style={inputStyle}
           value={dateTo}
           max={today}
           onChange={(e) => setDateTo(e.target.value)}
         />
-        <Button onClick={() => fetchLogs(1)} disabled={loading}>
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Filter'}
-        </Button>
-        <Button variant="outline" onClick={() => {
-          setSelectedAction('')
-          setDateFrom('')
-          setDateTo(today)
-          setTimeout(() => fetchLogs(1), 100)
-        }}>
-          Reset
-        </Button>
+
+        <PrimaryButton onClick={() => fetchLogs(1)} disabled={loading}>
+          {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+          Filter
+        </PrimaryButton>
+        <OutlineButton onClick={handleReset}>Reset</OutlineButton>
       </div>
 
       {/* Table */}
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          Tidak ada log aktivitas
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="pt-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Aksi</TableHead>
-                  <TableHead>Detail</TableHead>
-                  <TableHead>IP</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {format(new Date(log.createdAt), 'd MMM yyyy, HH:mm:ss', { locale: id })}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm font-medium">{log.userName}</p>
-                        <p className="text-xs text-muted-foreground">
+      <div
+        className="rounded-2xl p-5"
+        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+      >
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Memuat log aktivitas...</p>
+          </div>
+        ) : logs.length === 0 ? (
+          <div
+            className="flex flex-col items-center justify-center py-16 rounded-xl gap-3"
+            style={{ background: 'var(--muted)' }}
+          >
+            <ShieldCheck className="w-10 h-10" style={{ color: 'var(--muted-foreground)' }} />
+            <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Tidak ada log aktivitas</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Waktu', 'User', 'Aksi', 'Detail', 'IP'].map((h) => (
+                      <th
+                        key={h}
+                        className="text-left py-3 px-3 text-xs font-medium"
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="transition-colors"
+                      style={{ borderBottom: '1px solid var(--border)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--muted)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <td className="py-3 px-3 text-xs whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>
+                        {format(new Date(log.createdAt), 'd MMM yyyy, HH:mm:ss', { locale: id })}
+                      </td>
+                      <td className="py-3 px-3">
+                        <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{log.userName}</p>
+                        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                           @{log.username} · {log.role === 'ADMIN' ? 'Admin' : 'Kasir'}
                         </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-700'}`}>
-                        {log.action.replace(/_/g, ' ')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                      {formatDetails(log.details)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
-                      {log.ipAddress ?? '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`badge ${ACTION_BADGE_CLASS[log.action] ?? 'badge-neutral'}`}>
+                          {log.action.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-xs max-w-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
+                        {formatDetails(log.details)}
+                      </td>
+                      <td className="py-3 px-3 text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>
+                        {log.ipAddress ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
+              <div
+                className="flex items-center justify-between mt-4 pt-4"
+                style={{ borderTop: '1px solid var(--border)' }}
+              >
+                <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
                   Halaman {page} dari {totalPages}
                 </p>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => fetchLogs(page - 1)}
-                  >
+                  <OutlineButton disabled={page <= 1} onClick={() => fetchLogs(page - 1)}>
                     Sebelumnya
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => fetchLogs(page + 1)}
-                  >
+                  </OutlineButton>
+                  <OutlineButton disabled={page >= totalPages} onClick={() => fetchLogs(page + 1)}>
                     Berikutnya
-                  </Button>
+                  </OutlineButton>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

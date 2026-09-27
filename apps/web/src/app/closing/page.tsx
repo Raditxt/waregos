@@ -2,17 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  ShoppingCart, DollarSign, TrendingUp,
-  Package, Banknote, Smartphone, Building2,
-  Loader2, CheckCircle2, XCircle, Clock
-} from 'lucide-react'
+import { formatRupiah } from '@/lib/format'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
-import { formatRupiah} from '@/lib/format' // ← import helper
+import {
+  ShoppingCart, DollarSign, TrendingUp, Package,
+  Banknote, Smartphone, CreditCard, Loader2,
+  CheckCircle2, XCircle, Clock, Calendar
+} from 'lucide-react'
 
 interface ClosingData {
   date: string
@@ -24,8 +21,9 @@ interface ClosingData {
   expectedCash: number
   byPaymentMethod: {
     CASH: { count: number; total: number }
-    TRANSFER: { count: number; total: number }
     QRIS: { count: number; total: number }
+    DEBT: { count: number; total: number }
+    TRANSFER: { count: number; total: number }
   }
   lastTransaction: {
     invoiceNumber: string
@@ -55,259 +53,323 @@ export default function ClosingPage() {
   }, [])
 
   useEffect(() => {
-    const init = async () => {
-      await fetchClosing(selectedDate)
-    }
+    const init = async () => { await fetchClosing(today) }
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate])
+  }, [])
 
-  const cashDiff = data ? Number(actualCash.replace(/\./g, '') || 0) - data.expectedCash : 0
+  useEffect(() => {
+    const run = async () => { await fetchClosing(selectedDate) }
+    run()
+  }, [selectedDate, fetchClosing])
+
+  const actualCashNum = Number(actualCash.replace(/\./g, '') || 0)
+  const cashDiff = data ? actualCashNum - data.expectedCash : 0
+
+  const summaryCards = [
+    {
+      label: 'Total Transaksi',
+      value: `${data?.totalTransactions ?? 0}`,
+      sub: `${data?.cancelledTransactions ?? 0} dibatalkan`,
+      icon: ShoppingCart,
+      color: '#3b82f6',
+      bg: 'rgba(59,130,246,0.1)',
+    },
+    {
+      label: 'Total Omzet',
+      value: formatRupiah(data?.totalRevenue ?? 0),
+      sub: 'pendapatan kotor',
+      icon: DollarSign,
+      color: '#22c55e',
+      bg: 'rgba(34,197,94,0.1)',
+    },
+    {
+      label: 'Total Profit',
+      value: formatRupiah(data?.totalProfit ?? 0),
+      sub: 'keuntungan bersih',
+      icon: TrendingUp,
+      color: '#f97316',
+      bg: 'rgba(249,115,22,0.1)',
+    },
+    {
+      label: 'Item Terjual',
+      value: `${data?.totalItems ?? 0}`,
+      sub: 'dari semua transaksi',
+      icon: Package,
+      color: '#a855f7',
+      bg: 'rgba(168,85,247,0.1)',
+    },
+  ]
+
+  const paymentRows = [
+    { key: 'CASH', label: 'Tunai', icon: Banknote, color: '#22c55e' },
+    { key: 'QRIS', label: 'QRIS', icon: Smartphone, color: '#8b5cf6' },
+    { key: 'DEBT', label: 'Hutang', icon: CreditCard, color: '#f59e0b' },
+  ]
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Closing Harian</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
+            Closing Harian
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
             Rekap & tutup buku akhir hari
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Input
+        {/* Date picker */}
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <Calendar className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+          <input
             type="date"
-            className="w-44"
             value={selectedDate}
             max={today}
             onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-transparent text-sm outline-none"
+            style={{ color: 'var(--foreground)' }}
           />
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--primary)' }} />
         </div>
       ) : data ? (
-        <div className="space-y-6">
-
-          {/* Tanggal */}
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Clock className="w-4 h-4" />
-            <span>
+        <div className="space-y-4">
+          {/* Date label */}
+          <div className="flex items-center gap-2" style={{ color: 'var(--muted-foreground)' }}>
+            <Clock className="w-3.5 h-3.5" />
+            <span className="text-sm">
               Laporan untuk {format(new Date(data.date + 'T00:00:00'), 'EEEE, d MMMM yyyy', { locale: id })}
             </span>
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            {[
-              {
-                title: 'Total Transaksi',
-                value: data.totalTransactions,
-                sub: `${data.cancelledTransactions} dibatalkan`,
-                icon: ShoppingCart,
-                color: 'text-blue-500'
-              },
-              {
-                title: 'Total Omzet',
-                value: formatRupiah(data.totalRevenue),
-                sub: 'pendapatan kotor',
-                icon: DollarSign,
-                color: 'text-green-500'
-              },
-              {
-                title: 'Total Profit',
-                value: formatRupiah(data.totalProfit),
-                sub: 'keuntungan bersih',
-                icon: TrendingUp,
-                color: 'text-emerald-500'
-              },
-              {
-                title: 'Item Terjual',
-                value: data.totalItems,
-                sub: 'dari semua transaksi',
-                icon: Package,
-                color: 'text-orange-500'
-              },
-            ].map(({ title, value, sub, icon: Icon, color }) => (
-              <Card key={title}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                  <Icon className={`w-4 h-4 ${color}`} />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{value}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-                </CardContent>
-              </Card>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            {summaryCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
+              <div
+                key={label}
+                className="rounded-2xl p-4"
+                style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <p className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
+                    {label}
+                  </p>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: bg }}>
+                    <Icon className="w-3.5 h-3.5" style={{ color }} />
+                  </div>
+                </div>
+                <p className="text-xl font-bold" style={{ color: 'var(--foreground)' }}>{value}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{sub}</p>
+              </div>
             ))}
           </div>
 
-          {/* Breakdown per Metode Bayar */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Breakdown Metode Pembayaran</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { key: 'CASH', label: 'Tunai', icon: Banknote, color: 'text-green-600' },
-                  { key: 'TRANSFER', label: 'Transfer', icon: Building2, color: 'text-blue-600' },
-                  { key: 'QRIS', label: 'QRIS', icon: Smartphone, color: 'text-purple-600' },
-                ].map(({ key, label, icon: Icon, color }) => {
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Payment breakdown */}
+            <div
+              className="rounded-2xl p-5"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <p className="text-sm font-semibold mb-4" style={{ color: 'var(--foreground)' }}>
+                Breakdown Metode Pembayaran
+              </p>
+              <div className="space-y-3">
+                {paymentRows.map(({ key, label, icon: Icon, color }) => {
                   const method = data.byPaymentMethod[key as keyof typeof data.byPaymentMethod]
+                  if (!method || method.count === 0) return null
                   return (
-                    <div key={key} className="text-center p-4 rounded-lg bg-muted/50">
-                      <Icon className={`w-6 h-6 mx-auto mb-2 ${color}`} />
-                      <p className="text-sm font-medium">{label}</p>
-                      <p className="text-lg font-bold mt-1">{formatRupiah(method.total)}</p>
-                      <p className="text-xs text-muted-foreground">{method.count} transaksi</p>
+                    <div key={key} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: `${color}18` }}
+                        >
+                          <Icon className="w-3.5 h-3.5" style={{ color }} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{label}</p>
+                          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{method.count} transaksi</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+                        {formatRupiah(method.total)}
+                      </p>
                     </div>
                   )
                 })}
+                {paymentRows.every(({ key }) => {
+                  const m = data.byPaymentMethod[key as keyof typeof data.byPaymentMethod]
+                  return !m || m.count === 0
+                }) && (
+                  <p className="text-sm text-center py-4" style={{ color: 'var(--muted-foreground)' }}>
+                    Tidak ada transaksi
+                  </p>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Cash Reconciliation */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Banknote className="w-4 h-4" />
-                Rekonsiliasi Kas Tunai
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center py-2 border-b">
-                <span className="text-sm text-muted-foreground">Kas tunai dari sistem</span>
-                <span className="font-bold">{formatRupiah(data.expectedCash)}</span>
+            {/* Cash reconciliation */}
+            <div
+              className="rounded-2xl p-5"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <Banknote className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                  Rekonsiliasi Kas Tunai
+                </p>
+              </div>
+
+              <div
+                className="flex justify-between items-center py-2.5 mb-3"
+                style={{ borderBottom: '1px solid var(--border)' }}
+              >
+                <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+                  Kas tunai dari sistem
+                </span>
+                <span className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+                  {formatRupiah(data.expectedCash)}
+                </span>
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium">Kas tunai aktual (hitung fisik)</p>
-                <div className="relative max-w-xs">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
-                  <Input
+                <p className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                  KAS AKTUAL (HITUNG FISIK)
+                </p>
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                  style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
+                >
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                  <input
                     type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    className="pl-9"
                     value={actualCash}
                     onChange={(e) => {
                       const raw = e.target.value.replace(/\D/g, '')
-                      const formatted = raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-                      setActualCash(formatted)
+                      setActualCash(raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))
                     }}
+                    className="flex-1 bg-transparent text-sm outline-none font-bold"
+                    style={{ color: 'var(--foreground)' }}
                   />
                 </div>
               </div>
 
               {actualCash && (
-                <div className={`rounded-lg p-4 ${cashDiff === 0
-                  ? 'bg-green-50 dark:bg-green-950'
-                  : cashDiff > 0
-                    ? 'bg-blue-50 dark:bg-blue-950'
-                    : 'bg-red-50 dark:bg-red-950'
-                  }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {cashDiff === 0
-                        ? <CheckCircle2 className="w-5 h-5 text-green-600" />
-                        : <XCircle className="w-5 h-5 text-red-600" />
-                      }
-                      <span className="font-medium text-sm">
-                        {cashDiff === 0
-                          ? 'Kas sesuai!'
-                          : cashDiff > 0
-                            ? 'Kas lebih'
-                            : 'Kas kurang'
-                        }
-                      </span>
-                    </div>
-                    <span className={`text-xl font-bold ${cashDiff === 0
-                      ? 'text-green-600'
+                <div
+                  className="flex items-center justify-between mt-3 px-4 py-3 rounded-xl"
+                  style={{
+                    background: cashDiff === 0
+                      ? 'rgba(34,197,94,0.1)'
                       : cashDiff > 0
-                        ? 'text-blue-600'
-                        : 'text-red-600'
-                      }`}>
-                      {cashDiff > 0 ? '+' : ''}{formatRupiah(cashDiff)}
+                        ? 'rgba(59,130,246,0.1)'
+                        : 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${cashDiff === 0 ? 'rgba(34,197,94,0.2)' : cashDiff > 0 ? 'rgba(59,130,246,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    {cashDiff === 0
+                      ? <CheckCircle2 className="w-4 h-4" style={{ color: '#22c55e' }} />
+                      : <XCircle className="w-4 h-4" style={{ color: cashDiff > 0 ? '#3b82f6' : '#ef4444' }} />
+                    }
+                    <span className="text-sm font-medium" style={{
+                      color: cashDiff === 0 ? '#22c55e' : cashDiff > 0 ? '#3b82f6' : '#ef4444'
+                    }}>
+                      {cashDiff === 0 ? 'Kas sesuai!' : cashDiff > 0 ? 'Kas lebih' : 'Kas kurang'}
                     </span>
                   </div>
-                  {cashDiff !== 0 && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {cashDiff > 0
-                        ? 'Kas fisik lebih dari catatan sistem. Periksa apakah ada transaksi yang belum tercatat.'
-                        : 'Kas fisik kurang dari catatan sistem. Periksa kembali hitungan atau transaksi hari ini.'
-                      }
-                    </p>
-                  )}
+                  <span className="text-base font-bold" style={{
+                    color: cashDiff === 0 ? '#22c55e' : cashDiff > 0 ? '#3b82f6' : '#ef4444'
+                  }}>
+                    {cashDiff > 0 ? '+' : ''}{formatRupiah(cashDiff)}
+                  </span>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Transaksi Terakhir */}
+          {/* Last transaction */}
           {data.lastTransaction && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Transaksi Terakhir</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-mono text-sm">{data.lastTransaction.invoiceNumber}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(data.lastTransaction.createdAt), 'HH:mm:ss', { locale: id })} WIB
-                    </p>
-                  </div>
-                  <p className="font-bold text-lg">
-                    {formatRupiah(data.lastTransaction.totalAmount)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <div
+              className="rounded-2xl p-4 flex items-center justify-between"
+              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+            >
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--muted-foreground)' }}>
+                  TRANSAKSI TERAKHIR
+                </p>
+                <p className="text-sm font-mono font-bold" style={{ color: 'var(--foreground)' }}>
+                  {data.lastTransaction.invoiceNumber}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                  {format(new Date(data.lastTransaction.createdAt), 'HH:mm:ss')} WIB
+                </p>
+              </div>
+              <p className="text-lg font-bold" style={{ color: 'var(--primary)' }}>
+                {formatRupiah(data.lastTransaction.totalAmount)}
+              </p>
+            </div>
           )}
 
-          {/* Tutup Buku */}
-          <Card className={closingDone ? 'border-green-200 dark:border-green-800' : ''}>
-            <CardContent className="pt-6">
-              {closingDone ? (
-                <div className="flex items-center justify-center gap-3 py-4 text-green-600">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <div>
-                    <p className="font-bold">Closing selesai!</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(), 'HH:mm', { locale: id })} — Semua data sudah direkap.
-                    </p>
-                  </div>
+          {/* Tutup buku */}
+          <div
+            className="rounded-2xl p-5"
+            style={{
+              background: closingDone ? 'rgba(34,197,94,0.08)' : 'var(--card)',
+              border: `1px solid ${closingDone ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+            }}
+          >
+            {closingDone ? (
+              <div className="flex items-center justify-center gap-3 py-2">
+                <CheckCircle2 className="w-5 h-5" style={{ color: '#22c55e' }} />
+                <div>
+                  <p className="font-bold" style={{ color: '#22c55e' }}>Closing selesai!</p>
+                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    {format(new Date(), 'HH:mm')} — Semua data sudah direkap.
+                  </p>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Selesai closing hari ini?</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Pastikan kas sudah dihitung dan semua transaksi sudah tercatat.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => setClosingDone(true)}
-                    disabled={data.totalTransactions === 0}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Tutup Buku
-                  </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                    Selesai closing hari ini?
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                    Pastikan kas sudah dihitung dan semua transaksi tercatat.
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <button
+                  onClick={() => setClosingDone(true)}
+                  disabled={data.totalTransactions === 0}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shrink-0 transition-all"
+                  style={{
+                    background: data.totalTransactions === 0
+                      ? 'var(--muted)'
+                      : 'linear-gradient(135deg, #f97316, #f59e0b)',
+                    color: data.totalTransactions === 0 ? 'var(--muted-foreground)' : '#fff',
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Tutup Buku
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* No transaction state */}
           {data.totalTransactions === 0 && (
-            <div className="text-center py-8 text-muted-foreground text-sm">
+            <p className="text-center text-sm py-4" style={{ color: 'var(--muted-foreground)' }}>
               Tidak ada transaksi pada tanggal ini
-            </div>
+            </p>
           )}
         </div>
       ) : null}
