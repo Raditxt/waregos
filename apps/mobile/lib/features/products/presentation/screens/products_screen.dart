@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:animations/animations.dart';
 import '../providers/products_provider.dart'; // adjust import to your project structure
+import '../../../../shared/theme/app_theme.dart';
+import '../../../../shared/widgets/status_badge.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -42,6 +46,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(productsProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
 
     return Column(
       children: [
@@ -83,16 +88,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (state.lowStock.isNotEmpty)
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(right: 4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                  if (state.lowStock.isNotEmpty) ...[
+                    _PulsingDot(color: colorScheme.error),
+                    const SizedBox(width: 4),
+                  ],
                   Text('Stok Tipis (${state.lowStock.length})'),
                 ],
               ),
@@ -101,16 +100,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (state.expiringSoon.isNotEmpty)
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(right: 4),
-                      decoration: const BoxDecoration(
-                        color: Colors.orange,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                  if (state.expiringSoon.isNotEmpty) ...[
+                    _PulsingDot(color: semantic.warning),
+                    const SizedBox(width: 4),
+                  ],
                   Text('Kadaluarsa (${state.expiringSoon.length})'),
                 ],
               ),
@@ -120,43 +113,58 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
           unselectedLabelStyle: GoogleFonts.inter(fontSize: 12),
         ),
 
-        // Content
+        // Content — fade-through antar state (loading/error/data), bukan ganti tiba-tiba
         Expanded(
-          child: state.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : state.error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+          child: PageTransitionSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, animation, secondaryAnimation) {
+              return FadeThroughTransition(
+                animation: animation,
+                secondaryAnimation: secondaryAnimation,
+                child: child,
+              );
+            },
+            child: state.isLoading
+                ? const Center(
+                    key: ValueKey('loading'),
+                    child: CircularProgressIndicator(),
+                  )
+                : state.error != null
+                    ? Center(
+                        key: const ValueKey('error'),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline,
+                                size: 48, color: colorScheme.error),
+                            const SizedBox(height: 8),
+                            Text(state.error!),
+                            const SizedBox(height: 16),
+                            FilledButton(
+                              onPressed: () =>
+                                  ref.read(productsProvider.notifier).loadAll(),
+                              child: const Text('Coba Lagi'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : TabBarView(
+                        key: const ValueKey('data'),
+                        controller: _tabController,
                         children: [
-                          Icon(Icons.error_outline,
-                              size: 48, color: colorScheme.error),
-                          const SizedBox(height: 8),
-                          Text(state.error!),
-                          const SizedBox(height: 16),
-                          FilledButton(
-                            onPressed: () =>
-                                ref.read(productsProvider.notifier).loadAll(),
-                            child: const Text('Coba Lagi'),
-                          ),
+                          _buildProductList(state.products, colorScheme, semantic),
+                          _buildLowStockList(state.lowStock, colorScheme, semantic),
+                          _buildExpirySoonList(state.expiringSoon, colorScheme, semantic),
                         ],
                       ),
-                    )
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildProductList(state.products, colorScheme),
-                        _buildLowStockList(state.lowStock, colorScheme),
-                        _buildExpirySoonList(state.expiringSoon, colorScheme),
-                      ],
-                    ),
+          ),
         ),
       ],
     );
   }
 
   Widget _buildProductList(
-      List<ProductModel> products, ColorScheme colorScheme) {
+      List<ProductModel> products, ColorScheme colorScheme, AppSemanticColors semantic) {
     if (products.isEmpty) {
       return Center(
         child: Column(
@@ -168,7 +176,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
             Text('Tidak ada produk',
                 style: GoogleFonts.inter(color: colorScheme.onSurfaceVariant)),
           ],
-        ),
+        ).animate().fadeIn(duration: 300.ms),
       );
     }
 
@@ -178,17 +186,20 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
         padding: const EdgeInsets.all(12),
         itemCount: products.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (ctx, i) => _buildProductCard(products[i], colorScheme),
+        itemBuilder: (ctx, i) => _buildProductCard(products[i], colorScheme, semantic, i),
       ),
     );
   }
 
-  Widget _buildProductCard(ProductModel p, ColorScheme colorScheme) {
+  Widget _buildProductCard(
+      ProductModel p, ColorScheme colorScheme, AppSemanticColors semantic, int index) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: colorScheme.outlineVariant),
+        side: BorderSide(
+          color: p.isLowStock ? colorScheme.error.withValues(alpha: 0.3) : colorScheme.outlineVariant,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -199,17 +210,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: p.isLowStock
-                    ? Colors.red.shade50
-                    : colorScheme.primaryContainer,
+                color: p.isLowStock ? colorScheme.errorContainer : colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 Icons.inventory_2_rounded,
                 size: 22,
-                color: p.isLowStock
-                    ? Colors.red.shade600
-                    : colorScheme.onPrimaryContainer,
+                color: p.isLowStock ? colorScheme.error : colorScheme.onPrimaryContainer,
               ),
             ),
             const SizedBox(width: 12),
@@ -224,27 +231,14 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
+                      color: colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       if (p.categoryName != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            p.categoryName!,
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              color: colorScheme.onSecondaryContainer,
-                            ),
-                          ),
-                        ),
+                        StatusBadge(label: p.categoryName!, variant: BadgeVariant.accent),
                         const SizedBox(width: 4),
                       ],
                       Text(
@@ -259,26 +253,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                   ),
                   if (p.isExpired || p.isExpiringSoon) ...[
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.warning_amber_rounded,
-                          size: 12,
-                          color: p.isExpired
-                              ? Colors.red.shade600
-                              : Colors.orange.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          p.isExpired ? 'Sudah kadaluarsa' : 'Segera kadaluarsa',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: p.isExpired
-                                ? Colors.red.shade600
-                                : Colors.orange.shade600,
-                          ),
-                        ),
-                      ],
+                    StatusBadge(
+                      label: p.isExpired ? 'Sudah kadaluarsa' : 'Segera kadaluarsa',
+                      variant: p.isExpired ? BadgeVariant.error : BadgeVariant.warning,
+                      icon: Icons.warning_amber_rounded,
                     ),
                   ],
                 ],
@@ -289,34 +267,15 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: p.isLowStock
-                        ? Colors.red.shade100
-                        : Colors.grey.shade100,
-                  ),
-                  child: Text(
-                    '${p.stock} ${p.unitSymbol}',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: p.isLowStock
-                          ? Colors.red.shade700
-                          : Colors.grey.shade700,
-                    ),
-                  ),
+                StatusBadge(
+                  label: '${p.stock} ${p.unitSymbol}',
+                  variant: p.isLowStock ? BadgeVariant.error : BadgeVariant.neutral,
                 ),
                 if (p.isLowStock) ...[
                   const SizedBox(height: 2),
                   Text(
                     'Stok tipis',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: Colors.red.shade600,
-                    ),
+                    style: GoogleFonts.inter(fontSize: 10, color: colorScheme.error),
                   ),
                 ],
               ],
@@ -324,25 +283,27 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
           ],
         ),
       ),
-    );
+    )
+        .animate(delay: (index * 40).ms)
+        .fadeIn(duration: 300.ms, curve: Curves.easeOut)
+        .slideY(begin: 0.08, end: 0, duration: 300.ms, curve: Curves.easeOut);
   }
 
   Widget _buildLowStockList(
-      List<ProductModel> products, ColorScheme colorScheme) {
+      List<ProductModel> products, ColorScheme colorScheme, AppSemanticColors semantic) {
     if (products.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline,
-                size: 48, color: Colors.green.shade400),
+            Icon(Icons.check_circle_outline, size: 48, color: semantic.success),
             const SizedBox(height: 8),
             Text(
               'Semua stok aman!',
               style: GoogleFonts.inter(color: colorScheme.onSurfaceVariant),
             ),
           ],
-        ),
+        ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9)),
       );
     }
 
@@ -350,26 +311,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
       padding: const EdgeInsets.all(12),
       itemCount: products.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (ctx, i) => _buildProductCard(products[i], colorScheme),
+      itemBuilder: (ctx, i) => _buildProductCard(products[i], colorScheme, semantic, i),
     );
   }
 
   Widget _buildExpirySoonList(
-      List<ProductModel> products, ColorScheme colorScheme) {
+      List<ProductModel> products, ColorScheme colorScheme, AppSemanticColors semantic) {
     if (products.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline,
-                size: 48, color: Colors.green.shade400),
+            Icon(Icons.check_circle_outline, size: 48, color: semantic.success),
             const SizedBox(height: 8),
             Text(
               'Tidak ada produk hampir kadaluarsa!',
               style: GoogleFonts.inter(color: colorScheme.onSurfaceVariant),
             ),
           ],
-        ),
+        ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9)),
       );
     }
 
@@ -379,58 +339,59 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
         final p = products[i];
+        final isExpired = p.isExpired;
+        final tint = isExpired ? colorScheme.error : semantic.warning;
+        final tintContainer = isExpired ? colorScheme.errorContainer : semantic.warningContainer;
+
         return Card(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: p.isExpired
-                  ? Colors.red.shade200
-                  : Colors.orange.shade200,
-            ),
+            side: BorderSide(color: tint.withValues(alpha: 0.35)),
           ),
-          color: p.isExpired
-              ? Colors.red.shade50
-              : Colors.orange.shade50,
+          color: tintContainer,
           child: ListTile(
-            leading: Icon(
-              Icons.warning_amber_rounded,
-              color: p.isExpired
-                  ? Colors.red.shade600
-                  : Colors.orange.shade600,
-            ),
+            leading: Icon(Icons.warning_amber_rounded, color: tint),
             title: Text(
               p.name,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
             ),
             subtitle: Text(
               p.expiryDate != null
                   ? 'Kadaluarsa: ${DateFormat('d MMM yyyy').format(DateTime.parse(p.expiryDate!))}'
                   : '',
-              style: GoogleFonts.inter(fontSize: 12),
+              style: GoogleFonts.inter(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: p.isExpired
-                    ? Colors.red.shade100
-                    : Colors.orange.shade100,
-              ),
-              child: Text(
-                p.isExpired ? 'Expired' : 'Segera',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: p.isExpired
-                      ? Colors.red.shade700
-                      : Colors.orange.shade700,
-                ),
-              ),
+            trailing: StatusBadge(
+              label: isExpired ? 'Expired' : 'Segera',
+              variant: isExpired ? BadgeVariant.error : BadgeVariant.warning,
             ),
           ),
-        );
+        ).animate(delay: (i * 40).ms).fadeIn(duration: 300.ms).slideY(begin: 0.08, end: 0);
       },
     );
+  }
+}
+
+/// Dot kecil berdenyut pelan — dipakai sebagai cue "butuh perhatian"
+/// di tab Stok Tipis / Kadaluarsa. Bukan dekorasi: fungsinya menarik
+/// mata kasir ke tab yang ada masalahnya, konsisten dengan prinsip
+/// "animasi mobile = membangun kepercayaan diri aksi", bukan estetika semata.
+class _PulsingDot extends StatelessWidget {
+  final Color color;
+  const _PulsingDot({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(
+          duration: 700.ms,
+          begin: const Offset(1, 1),
+          end: const Offset(1.4, 1.4),
+          curve: Curves.easeInOut,
+        );
   }
 }

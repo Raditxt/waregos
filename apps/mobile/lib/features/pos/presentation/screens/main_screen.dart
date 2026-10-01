@@ -53,6 +53,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
+                color: colorScheme.onSurface,
               ),
             ),
           ],
@@ -60,6 +61,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         actions: [
           // ====== USER INFO + LOGOUT ======
           PopupMenuButton(
+            // Radius popup disamain dengan --radius-lg (16px) di design system
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 3,
+            surfaceTintColor: Colors.transparent,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
@@ -86,6 +93,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       Text(
@@ -98,7 +106,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                     ],
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.arrow_drop_down),
+                  Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant),
                 ],
               ),
             ),
@@ -107,11 +115,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 onTap: () async {
                   await ref.read(authProvider.notifier).logout();
                 },
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 18),
-                    SizedBox(width: 8),
-                    Text('Logout'),
+                    Icon(Icons.logout_rounded, size: 18, color: colorScheme.error),
+                    const SizedBox(width: 8),
+                    Text('Logout', style: TextStyle(color: colorScheme.error)),
                   ],
                 ),
               ),

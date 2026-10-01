@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/debts_provider.dart';
+import '../../../../shared/theme/app_theme.dart';
+import '../../../../shared/widgets/status_badge.dart';
 
 class DebtsScreen extends ConsumerStatefulWidget {
   const DebtsScreen({super.key});
@@ -30,6 +33,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(debtsProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
 
     return Column(
       children: [
@@ -40,9 +44,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             margin: const EdgeInsets.all(12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
+              color: colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.shade200),
+              border: Border.all(color: colorScheme.error.withValues(alpha: 0.25)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -52,31 +56,25 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                   children: [
                     Text(
                       'Total Outstanding',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.red.shade700,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 12, color: colorScheme.error),
                     ),
                     Text(
                       _rupiahFormat.format(state.totalOutstanding),
                       style: GoogleFonts.inter(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
+                        color: colorScheme.error,
                       ),
                     ),
                   ],
                 ),
                 Text(
                   '${state.debts.length} pelanggan',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: Colors.red.shade600,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 13, color: colorScheme.error),
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 250.ms).slideY(begin: -0.1, end: 0, curve: Curves.easeOut),
 
         // Action buttons
         Padding(
@@ -87,10 +85,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 child: FilledButton.icon(
                   onPressed: () => _showAddDebtDialog(context),
                   icon: const Icon(Icons.add, size: 18),
-                  label: Text(
-                    'Catat Hutang',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                  ),
+                  label: Text('Catat Hutang', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -98,10 +93,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => _showPaymentDialog(context),
                   icon: const Icon(Icons.payments_outlined, size: 18),
-                  label: Text(
-                    'Catat Bayar',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                  ),
+                  label: Text('Catat Bayar', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
@@ -122,8 +114,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           Text(state.error!),
                           const SizedBox(height: 12),
                           FilledButton(
-                            onPressed: () =>
-                                ref.read(debtsProvider.notifier).loadDebts(),
+                            onPressed: () => ref.read(debtsProvider.notifier).loadDebts(),
                             child: const Text('Coba Lagi'),
                           ),
                         ],
@@ -134,11 +125,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.check_circle_outline,
-                                size: 64,
-                                color: Colors.green.shade400,
-                              ),
+                              Icon(Icons.check_circle_outline, size: 64, color: semantic.success),
                               const SizedBox(height: 12),
                               Text(
                                 'Tidak ada hutang!',
@@ -150,17 +137,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                               ),
                             ],
                           ),
-                        )
+                        ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9))
                       : RefreshIndicator(
-                          onRefresh: () =>
-                              ref.read(debtsProvider.notifier).loadDebts(),
+                          onRefresh: () => ref.read(debtsProvider.notifier).loadDebts(),
                           child: ListView.separated(
                             padding: const EdgeInsets.all(12),
                             itemCount: state.debts.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
                             itemBuilder: (ctx, i) =>
-                                _buildDebtCard(state.debts[i], colorScheme),
+                                _buildDebtCard(state.debts[i], colorScheme, semantic, i),
                           ),
                         ),
         ),
@@ -168,7 +153,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
   }
 
-  Widget _buildDebtCard(DebtSummary debt, ColorScheme colorScheme) {
+  Widget _buildDebtCard(
+      DebtSummary debt, ColorScheme colorScheme, AppSemanticColors semantic, int index) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -183,13 +169,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: Colors.red.shade100,
+                backgroundColor: colorScheme.errorContainer,
                 child: Text(
                   debt.customerName.substring(0, 1).toUpperCase(),
-                  style: GoogleFonts.inter(
-                    color: Colors.red.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: GoogleFonts.inter(color: colorScheme.error, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(width: 12),
@@ -199,17 +182,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                   children: [
                     Text(
                       debt.customerName,
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
                     ),
                     Text(
                       '${debt.transactionCount} transaksi',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -222,39 +199,35 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red.shade700,
+                      color: colorScheme.error,
                     ),
                   ),
-                  Text(
-                    'belum lunas',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                  const SizedBox(height: 2),
+                  const StatusBadge(label: 'belum lunas', variant: BadgeVariant.error),
                 ],
               ),
               const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
+              Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
             ],
           ),
         ),
       ),
-    );
+    )
+        .animate(delay: (index * 40).ms)
+        .fadeIn(duration: 280.ms, curve: Curves.easeOut)
+        .slideY(begin: 0.08, end: 0, duration: 280.ms, curve: Curves.easeOut);
   }
 
   Future<void> _showHistory(String customerName) async {
-    final data =
-        await ref.read(debtsProvider.notifier).getHistory(customerName);
+    final data = await ref.read(debtsProvider.notifier).getHistory(customerName);
     if (data == null || !mounted) return;
 
     final history = (data['history'] as List)
         .map((e) => DebtHistoryItem.fromJson(e as Map<String, dynamic>))
         .toList();
     final totalDebt = (data['totalDebt'] as num).toDouble();
+    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -276,7 +249,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               height: 4,
               margin: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -288,17 +261,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 children: [
                   Text(
                     customerName,
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
                     _rupiahFormat.format(totalDebt),
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.red.shade700,
+                      color: colorScheme.error,
                     ),
                   ),
                 ],
@@ -310,18 +280,18 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               child: FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  _showPaymentDialog(context,
-                      prefilledName: customerName);
+                  _showPaymentDialog(context, prefilledName: customerName);
                 },
                 icon: const Icon(Icons.payments_outlined, size: 16),
                 label: const Text('Catat Pembayaran'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(double.infinity, 40),
-                  backgroundColor: Colors.green.shade600,
+                  backgroundColor: semantic.success,
+                  foregroundColor: Colors.white,
                 ),
               ),
             ),
-            const Divider(height: 24),
+            Divider(height: 24, color: colorScheme.outlineVariant),
             // History
             Expanded(
               child: ListView.separated(
@@ -332,30 +302,23 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 itemBuilder: (ctx, i) {
                   final h = history[i];
                   final isDebt = h.type == 'DEBT';
+                  final tint = isDebt ? colorScheme.error : semantic.success;
+                  final tintContainer = isDebt ? colorScheme.errorContainer : semantic.successContainer;
+
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
-                      color: isDebt
-                          ? Colors.red.shade50
-                          : Colors.green.shade50,
-                      border: Border.all(
-                        color: isDebt
-                            ? Colors.red.shade200
-                            : Colors.green.shade200,
-                      ),
+                      color: tintContainer,
+                      border: Border.all(color: tint.withValues(alpha: 0.25)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          isDebt
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
+                          isDebt ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
                           size: 18,
-                          color: isDebt
-                              ? Colors.red.shade600
-                              : Colors.green.shade600,
+                          color: tint,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -364,34 +327,28 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                             children: [
                               Text(
                                 isDebt ? 'Ambil hutang' : 'Bayar hutang',
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                               ),
                               if (h.notes != null)
                                 Text(
                                   h.notes!,
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
-                                    color: Colors.grey.shade600,
+                                    color: colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               if (h.items != null && h.items!.isNotEmpty)
                                 ...h.items!.map((item) => Text(
                                       '• ${item['name']} ×${item['quantity']}',
                                       style: GoogleFonts.inter(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade600),
+                                        fontSize: 11,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
                                     )),
                               Text(
-                                DateFormat('d MMM yyyy, HH:mm').format(
-                                    DateTime.parse(h.createdAt)
-                                        .toLocal()),
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade500,
-                                ),
+                                DateFormat('d MMM yyyy, HH:mm')
+                                    .format(DateTime.parse(h.createdAt).toLocal()),
+                                style: GoogleFonts.inter(fontSize: 11, color: colorScheme.onSurfaceVariant),
                               ),
                             ],
                           ),
@@ -401,26 +358,17 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           children: [
                             Text(
                               '${isDebt ? '+' : '-'}${_rupiahFormat.format(h.amount)}',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: isDebt
-                                    ? Colors.red.shade700
-                                    : Colors.green.shade700,
-                              ),
+                              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: tint),
                             ),
                             Text(
                               'sisa ${_rupiahFormat.format(h.balance)}',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: Colors.grey.shade500,
-                              ),
+                              style: GoogleFonts.inter(fontSize: 10, color: colorScheme.onSurfaceVariant),
                             ),
                           ],
                         ),
                       ],
                     ),
-                  );
+                  ).animate(delay: (i * 30).ms).fadeIn(duration: 220.ms).slideX(begin: 0.05, end: 0);
                 },
               ),
             ),
@@ -434,6 +382,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final nameCtrl = TextEditingController();
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
@@ -472,19 +422,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
               final amount = double.tryParse(amountCtrl.text) ?? 0;
               if (name.isEmpty || amount <= 0) return;
 
-              final success = await ref
-                  .read(debtsProvider.notifier)
-                  .addDebt(
+              final success = await ref.read(debtsProvider.notifier).addDebt(
                     customerName: name,
                     amount: amount,
                     notes: notesCtrl.text.trim(),
@@ -494,10 +439,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success
-                        ? 'Hutang berhasil dicatat'
-                        : 'Gagal mencatat hutang'),
-                    backgroundColor: success ? Colors.green : Colors.red,
+                    content: Text(success ? 'Hutang berhasil dicatat' : 'Gagal mencatat hutang'),
+                    backgroundColor: success ? semantic.success : colorScheme.error,
                   ),
                 );
               }
@@ -513,6 +456,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final nameCtrl = TextEditingController(text: prefilledName ?? '');
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
 
     showDialog(
       context: context,
@@ -550,19 +495,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
               final amount = double.tryParse(amountCtrl.text) ?? 0;
               if (name.isEmpty || amount <= 0) return;
 
-              final success = await ref
-                  .read(debtsProvider.notifier)
-                  .addPayment(
+              final success = await ref.read(debtsProvider.notifier).addPayment(
                     customerName: name,
                     amount: amount,
                     notes: notesCtrl.text.trim(),
@@ -572,10 +512,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success
-                        ? 'Pembayaran berhasil dicatat'
-                        : 'Gagal mencatat pembayaran'),
-                    backgroundColor: success ? Colors.green : Colors.red,
+                    content: Text(success ? 'Pembayaran berhasil dicatat' : 'Gagal mencatat pembayaran'),
+                    backgroundColor: success ? semantic.success : colorScheme.error,
                   ),
                 );
               }

@@ -1,7 +1,7 @@
 class ApiConstants {
   // Hostname mDNS — otomatis resolve di jaringan lokal
   // Tidak perlu IP manual
-  static const String baseUrl = 'http://192.168.110.47:3001/api';
+  static const String baseUrl = 'http://192.168.1.93:3001/api';
   
   // Auth
   static const String login = '/auth/login';
