@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/reports_provider.dart';
+import '../../../../shared/theme/app_theme.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -47,12 +49,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(reportsProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticColors>()!;
     final isLoading = state.isLoadingDaily || state.isLoadingClosing;
 
     return RefreshIndicator(
-      onRefresh: () => ref
-          .read(reportsProvider.notifier)
-          .loadAll(state.selectedDate),
+      onRefresh: () => ref.read(reportsProvider.notifier).loadAll(state.selectedDate),
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -63,25 +64,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   Expanded(
                     child: Text(
                       'Laporan Harian',
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  // Date picker
                   OutlinedButton.icon(
                     onPressed: _pickDate,
                     icon: const Icon(Icons.calendar_today_rounded, size: 16),
                     label: Text(
-                      _dateFormat.format(
-                        DateTime.parse(state.selectedDate),
-                      ),
+                      _dateFormat.format(DateTime.parse(state.selectedDate)),
                       style: GoogleFonts.inter(fontSize: 13),
                     ),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
                 ],
@@ -99,7 +93,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
+                    Icon(Icons.error_outline, size: 48, color: colorScheme.error),
                     const SizedBox(height: 8),
                     Text(
                       'Gagal memuat laporan',
@@ -108,25 +102,22 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Periksa koneksi ke server',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 16),
                     FilledButton.icon(
-                      onPressed: () => ref
-                          .read(reportsProvider.notifier)
-                          .loadAll(state.selectedDate),
+                      onPressed: () => ref.read(reportsProvider.notifier).loadAll(state.selectedDate),
                       icon: const Icon(Icons.refresh_rounded, size: 16),
                       label: const Text('Coba Lagi'),
                     ),
                   ],
                 ),
-              ),
+              ).animate().fadeIn(duration: 300.ms),
             )
           else ...[
-            // Summary cards
+            // Summary cards — warna dipetakan per makna metrik, bukan
+            // asal warna: info untuk aktivitas, success untuk uang masuk,
+            // primary (brand) untuk profit, accent untuk pergerakan stok.
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               sliver: SliverGrid(
@@ -136,36 +127,39 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     '${state.daily?.totalTransactions ?? 0}',
                     'transaksi',
                     Icons.receipt_long_rounded,
-                    Colors.blue,
+                    semantic.info,
                     colorScheme,
+                    0,
                   ),
                   _summaryCard(
                     'Omzet',
                     _rupiahFormat.format(state.daily?.totalRevenue ?? 0),
                     'pendapatan',
                     Icons.attach_money_rounded,
-                    Colors.green,
+                    semantic.success,
                     colorScheme,
+                    1,
                   ),
                   _summaryCard(
                     'Profit',
                     _rupiahFormat.format(state.daily?.totalProfit ?? 0),
                     'keuntungan',
                     Icons.trending_up_rounded,
-                    Colors.teal,
+                    colorScheme.primary,
                     colorScheme,
+                    2,
                   ),
                   _summaryCard(
                     'Item Terjual',
                     '${state.daily?.totalItemsSold ?? 0}',
                     'item',
                     Icons.inventory_2_rounded,
-                    Colors.orange,
+                    colorScheme.secondary,
                     colorScheme,
+                    3,
                   ),
                 ]),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   childAspectRatio: 1.6,
                   crossAxisSpacing: 8,
@@ -181,7 +175,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: _buildClosingCard(state.closing!, colorScheme),
+                  child: _buildClosingCard(state.closing!, colorScheme, semantic)
+                      .animate(delay: 150.ms)
+                      .fadeIn(duration: 300.ms)
+                      .slideY(begin: 0.05, end: 0),
                 ),
               ),
 
@@ -193,21 +190,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   child: Center(
                     child: Column(
                       children: [
-                        Icon(
-                          Icons.bar_chart_outlined,
-                          size: 48,
-                          color: colorScheme.outlineVariant,
-                        ),
+                        Icon(Icons.bar_chart_outlined, size: 48, color: colorScheme.outlineVariant),
                         const SizedBox(height: 8),
                         Text(
                           'Tidak ada transaksi pada tanggal ini',
-                          style: GoogleFonts.inter(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                          style: GoogleFonts.inter(color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
-                  ),
+                  ).animate().fadeIn(duration: 300.ms),
                 ),
               ),
 
@@ -223,8 +214,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     String value,
     String sub,
     IconData icon,
-    MaterialColor color,
+    Color iconColor,
     ColorScheme colorScheme,
+    int index,
   ) {
     return Card(
       elevation: 0,
@@ -243,12 +235,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: colorScheme.onSurfaceVariant),
                 ),
-                Icon(icon, size: 18, color: color),
+                Icon(icon, size: 18, color: iconColor),
               ],
             ),
             Column(
@@ -256,30 +245,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               children: [
                 Text(
                   value,
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   sub,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 11, color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
           ],
         ),
       ),
-    );
+    )
+        .animate(delay: (index * 60).ms)
+        .fadeIn(duration: 280.ms, curve: Curves.easeOut)
+        .slideY(begin: 0.08, end: 0, duration: 280.ms, curve: Curves.easeOut);
   }
 
-  Widget _buildClosingCard(ClosingData closing, ColorScheme colorScheme) {
+  Widget _buildClosingCard(ClosingData closing, ColorScheme colorScheme, AppSemanticColors semantic) {
     final cash = closing.byPaymentMethod['CASH'] as Map<String, dynamic>?;
+    // TRANSFER sengaja dipertahankan di breakdown — bukan metode aktif lagi
+    // di POS (dihapus Phase 6), tapi laporan closing tetap harus bisa
+    // menampilkan transaksi historis yang pernah pakai metode ini.
     final transfer = closing.byPaymentMethod['TRANSFER'] as Map<String, dynamic>?;
     final qris = closing.byPaymentMethod['QRIS'] as Map<String, dynamic>?;
     final debt = closing.byPaymentMethod['DEBT'] as Map<String, dynamic>?;
@@ -297,34 +286,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           children: [
             Text(
               'Breakdown Pembayaran',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
             ),
             const SizedBox(height: 12),
-            _paymentRow('💵 Tunai', cash?['total'] ?? 0,
-                cash?['count'] ?? 0, colorScheme),
-            _paymentRow('🏦 Transfer', transfer?['total'] ?? 0,
-                transfer?['count'] ?? 0, colorScheme),
-            _paymentRow('📱 QRIS', qris?['total'] ?? 0,
-                qris?['count'] ?? 0, colorScheme),
-            _paymentRow('📋 Hutang', debt?['total'] ?? 0,
-                debt?['count'] ?? 0, colorScheme),
-            const Divider(height: 20),
+            _paymentRow('💵 Tunai', cash?['total'] ?? 0, cash?['count'] ?? 0, colorScheme),
+            _paymentRow('🏦 Transfer', transfer?['total'] ?? 0, transfer?['count'] ?? 0, colorScheme),
+            _paymentRow('📱 QRIS', qris?['total'] ?? 0, qris?['count'] ?? 0, colorScheme),
+            _paymentRow('📋 Hutang', debt?['total'] ?? 0, debt?['count'] ?? 0, colorScheme),
+            Divider(height: 20, color: colorScheme.outlineVariant),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Kas Tunai Diharapkan',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                ),
+                Text('Kas Tunai Diharapkan', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                 Text(
                   _rupiahFormat.format(closing.expectedCash),
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade700,
-                  ),
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: semantic.success),
                 ),
               ],
             ),
@@ -344,14 +320,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       children: [
                         Text(
                           'Transaksi Terakhir',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                          style: GoogleFonts.inter(fontSize: 11, color: colorScheme.onSurfaceVariant),
                         ),
                         Text(
                           closing.lastTransaction!['invoiceNumber'] as String,
-                          style: GoogleFonts.jetBrainsMono(fontSize: 12),
+                          style: GoogleFonts.jetBrainsMono(fontSize: 12, color: colorScheme.onSurface),
                         ),
                       ],
                     ),
@@ -359,20 +332,16 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          _timeFormat.format(DateTime.parse(
-                            closing.lastTransaction!['createdAt'] as String,
-                          ).toLocal()),
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                          _timeFormat.format(
+                            DateTime.parse(closing.lastTransaction!['createdAt'] as String).toLocal(),
                           ),
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
                         ),
-                        // ========== PERUBAHAN DI SINI ==========
                         Text(
                           _rupiahFormat.format(
                             (closing.lastTransaction!['totalAmount'] as num).toDouble(),
                           ),
-                          style: GoogleFonts.inter(fontSize: 11),
+                          style: GoogleFonts.inter(fontSize: 11, color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -386,8 +355,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  Widget _paymentRow(
-      String label, dynamic total, dynamic count, ColorScheme colorScheme) {
+  Widget _paymentRow(String label, dynamic total, dynamic count, ColorScheme colorScheme) {
     final totalVal = (total as num).toDouble();
     if (totalVal == 0) return const SizedBox.shrink();
 
@@ -401,18 +369,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             children: [
               Text(
                 '${count}x',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: GoogleFonts.inter(fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
               const SizedBox(width: 8),
               Text(
                 _rupiahFormat.format(totalVal),
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ],
           ),
