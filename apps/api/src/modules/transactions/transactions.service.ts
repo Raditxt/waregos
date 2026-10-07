@@ -30,6 +30,17 @@ export class TransactionsService {
         }
       }
 
+      // 2.5. Validasi harga beli — produk tanpa buyPrice gak boleh dijual,
+      // karena akan merusak kalkulasi profit & TransactionItem.buyPrice wajib diisi
+      for (const item of input.items) {
+        const product = products.find((p) => p.id === item.productId)!;
+        if (product.buyPrice === null) {
+          throw new Error(
+            `${product.name} belum punya harga beli. Lengkapi dulu di halaman Produk atau catat pembelian sebelum dijual.`
+          );
+        }
+      }
+
       // 3. Hitung total
       const totalAmount = input.items.reduce((sum, item) => {
         return sum + item.sellPrice * item.quantity;
@@ -63,7 +74,7 @@ export class TransactionsService {
               return {
                 productId: item.productId,
                 quantity: item.quantity,
-                buyPrice: product.buyPrice,
+                buyPrice: product.buyPrice!, // ← sudah pasti non-null dari validasi 2.5
                 sellPrice: item.sellPrice,
                 subtotal: item.sellPrice * item.quantity,
               };
