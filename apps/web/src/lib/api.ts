@@ -40,14 +40,14 @@ export function getErrorMessage(error: unknown): string {
     const data = error.response?.data
     const status = error.response?.status
 
-    // Cek error code dari API
-    if (data?.error && ERROR_MESSAGES[data.error]) {
-      return ERROR_MESSAGES[data.error]
-    }
-
-    // Kalau ada message dari API, pakai itu
+    // Prioritaskan pesan spesifik dari backend (Zod messages, business logic errors)
     if (data?.message) {
       return data.message
+    }
+
+    // Fallback ke peta kode kalau backend gak kasih message
+    if (data?.error && ERROR_MESSAGES[data.error]) {
+      return ERROR_MESSAGES[data.error]
     }
 
     // Fallback berdasarkan HTTP status
