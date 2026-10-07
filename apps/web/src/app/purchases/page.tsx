@@ -8,8 +8,11 @@ import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
 import {
   Plus, Loader2, ShoppingBag, X,
-  ChevronDown, ChevronUp, Trash2, Search
+  ChevronDown, ChevronUp, Trash2, Search, PackagePlus
 } from 'lucide-react'
+
+interface Category { id: string; name: string }
+interface Unit { id: string; name: string; symbol: string }
 
 interface Product {
   id: string
@@ -55,6 +58,17 @@ export default function PurchasesPage() {
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
 
+  // Quick-add produk baru (Temuan B) — biar gak perlu pindah halaman
+  // pas nemu barang yang belum terdaftar di tengah sesi restok.
+  const [categories, setCategories] = useState<Category[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddName, setQuickAddName] = useState('')
+  const [quickAddCategoryId, setQuickAddCategoryId] = useState('')
+  const [quickAddUnitId, setQuickAddUnitId] = useState('')
+  const [quickAddSellPrice, setQuickAddSellPrice] = useState('')
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
+
   // Expanded rows
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -77,6 +91,12 @@ export default function PurchasesPage() {
   useEffect(() => {
     const init = async () => {
       await fetchPurchases()
+      const [catRes, unitRes] = await Promise.all([
+        api.get('/catalog/categories'),
+        api.get('/catalog/units'),
+      ])
+      setCategories(catRes.data.data ?? [])
+      setUnits(unitRes.data.data ?? [])
     }
     init()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,6 +151,55 @@ export default function PurchasesPage() {
     setItems(prev => prev.filter(i => i.productId !== productId))
   }
 
+  // ===== Temuan A: cegah dialog ketutup diam-diam kalau udah ada item =====
+  const handleCloseAttempt = () => {
+    if (items.length > 0) {
+      const ok = confirm(
+        `Batalkan pencatatan? ${items.length} produk yang sudah ditambahkan akan hilang.`
+      )
+      if (!ok) return
+    }
+    setDialogOpen(false)
+    setQuickAddOpen(false)
+  }
+
+  // ===== Temuan B: quick-add produk baru tanpa keluar dialog =====
+  const openQuickAdd = () => {
+    setQuickAddName(productSearch.trim())
+    setQuickAddCategoryId('')
+    setQuickAddUnitId('')
+    setQuickAddSellPrice('')
+    setQuickAddOpen(true)
+  }
+
+  const closeQuickAdd = () => {
+    setQuickAddOpen(false)
+  }
+
+  const handleQuickAddSave = async () => {
+    if (!quickAddName.trim() || !quickAddUnitId || !quickAddSellPrice) {
+      toast.error('Nama, satuan, dan harga jual wajib diisi')
+      return
+    }
+    setQuickAddSaving(true)
+    try {
+      const res = await api.post('/products', {
+        name: quickAddName.trim(),
+        categoryId: quickAddCategoryId || undefined,
+        unitId: quickAddUnitId,
+        sellPrice: Number(parseNumber(quickAddSellPrice)),
+      })
+      toast.success('Produk baru berhasil dibuat')
+      const newProduct: Product = res.data.data
+      addItem(newProduct)
+      setQuickAddOpen(false)
+    } catch (err) {
+      toast.error(getErrorMessage(err))
+    } finally {
+      setQuickAddSaving(false)
+    }
+  }
+
   const handleSave = async () => {
     if (items.length === 0) {
       toast.error('Tambahkan minimal 1 produk')
@@ -153,6 +222,7 @@ export default function PurchasesPage() {
       })
       toast.success('Pembelian berhasil dicatat')
       setDialogOpen(false)
+      setQuickAddOpen(false)
       setItems([])
       setSupplierName('')
       setNotes('')
@@ -170,6 +240,7 @@ export default function PurchasesPage() {
     setNotes('')
     setProductSearch('')
     setSearchResults([])
+    setQuickAddOpen(false)
     setDialogOpen(true)
   }
 
@@ -352,7 +423,7 @@ export default function PurchasesPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setDialogOpen(false)}
+          onClick={handleCloseAttempt}
         >
           <div
             className="w-full max-w-2xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
@@ -373,7 +444,7 @@ export default function PurchasesPage() {
                 </p>
               </div>
               <button
-                onClick={() => setDialogOpen(false)}
+                onClick={handleCloseAttempt}
                 className="p-1.5 rounded-lg"
                 style={{ color: 'var(--muted-foreground)' }}
               >
@@ -420,8 +491,18 @@ export default function PurchasesPage() {
                 </div>
               </div>
 
-              {/* Search produk */}
-              <div className="space-y-1.5">
+              {/* ─── Search produk (STICKY) ───────────────────────────────
+                  Dibuat sticky biar search bar + tombol "Tambah produk baru"
+                  tetap kelihatan saat user scroll daftar item yang panjang.
+                  Negative margin dipakai buat "membatalkan" px-6 py-4 dari
+                  parent, supaya background sticky-nya full-bleed rapi. */}
+              <div
+                className="sticky -top-4 z-30 -mx-6 -mt-4 px-6 pt-4 pb-3 space-y-1.5"
+                style={{
+                  background: 'var(--card)',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
                 <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                   TAMBAH PRODUK
                 </label>
@@ -481,8 +562,147 @@ export default function PurchasesPage() {
                       ))}
                     </div>
                   )}
+
+                  {/* Temuan B: gak ketemu → tawarkan quick-add */}
+                  {!searching && productSearch.trim() !== '' && searchResults.length === 0 && !quickAddOpen && (
+                    <div
+                      className="absolute top-full left-0 right-0 mt-1 rounded-xl p-3 z-10 flex items-center justify-between"
+                      style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                      }}
+                    >
+                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                        &quot;{productSearch}&quot; belum terdaftar
+                      </p>
+                      <button
+                        onClick={openQuickAdd}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
+                        style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}
+                      >
+                        <PackagePlus className="w-3.5 h-3.5" />
+                        Tambah produk baru
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Quick-add produk baru — inline, gak keluar dari dialog */}
+              {quickAddOpen && (
+                <div
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)' }}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                      PRODUK BARU
+                    </p>
+                    <button onClick={closeQuickAdd}>
+                      <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                      NAMA PRODUK *
+                    </label>
+                    <input
+                      type="text"
+                      value={quickAddName}
+                      onChange={(e) => setQuickAddName(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                        KATEGORI
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={quickAddCategoryId}
+                          onChange={(e) => setQuickAddCategoryId(e.target.value)}
+                          className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                        >
+                          <option value="">Pilih kategori</option>
+                          {categories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                          style={{ color: 'var(--muted-foreground)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                        SATUAN *
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={quickAddUnitId}
+                          onChange={(e) => setQuickAddUnitId(e.target.value)}
+                          className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+                          style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+                        >
+                          <option value="">Pilih satuan</option>
+                          {units.map(u => (
+                            <option key={u.id} value={u.id}>{u.name} ({u.symbol})</option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                          style={{ color: 'var(--muted-foreground)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                      HARGA JUAL *
+                    </label>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                    >
+                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={quickAddSellPrice}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '')
+                          setQuickAddSellPrice(raw ? formatNumber(raw) : '')
+                        }}
+                        className="flex-1 bg-transparent text-sm outline-none"
+                        style={{ color: 'var(--foreground)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                    Harga beli diisi di baris pembelian setelah produk ditambahkan. Detail lain (SKU, barcode, kadaluarsa) bisa dilengkapi nanti di halaman Produk.
+                  </p>
+
+                  <button
+                    onClick={handleQuickAddSave}
+                    disabled={quickAddSaving}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                    style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+                  >
+                    {quickAddSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Buat & Tambahkan ke Daftar
+                  </button>
+                </div>
+              )}
 
               {/* Items list */}
               {items.length > 0 && (
@@ -589,7 +809,7 @@ export default function PurchasesPage() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setDialogOpen(false)}
+                  onClick={handleCloseAttempt}
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium"
                   style={{
                     background: 'var(--muted)',
