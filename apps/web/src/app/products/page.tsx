@@ -158,7 +158,7 @@ export default function ProductsPage() {
         barcode: form.barcode || undefined,
         categoryId: form.categoryId || undefined,
         unitId: form.unitId,
-        buyPrice: form.buyPrice ? Number(parseNumber(form.buyPrice)) : undefined,
+        buyPrice: form.buyPrice ? Number(parseNumber(form.buyPrice)) : null,
         sellPrice: Number(parseNumber(form.sellPrice)),
         stock: form.stock ? Number(form.stock) : undefined,
         minStock: form.minStock ? Number(form.minStock) : undefined,
@@ -543,21 +543,27 @@ export default function ProductsPage() {
                   <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                     KATEGORI
                   </label>
-                  <select
-                    value={form.categoryId}
-                    onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                    style={{
-                      background: 'var(--muted)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    <option value="">Pilih kategori</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={form.categoryId}
+                      onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                      className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+                      style={{
+                        background: 'var(--muted)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      <option value="">Pilih kategori</option>
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: 'var(--muted-foreground)' }}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
