@@ -1,85 +1,89 @@
-import { FastifyInstance } from 'fastify'
-import { ProductsService } from './products.service'
-import { ActivityService } from '../audit/audit.service'
-import { createProductSchema, updateProductSchema, productQuerySchema } from './products.schema'
-import { JwtPayload } from '@waregos/types'
-import { Prisma } from '@prisma/client'
-import { ok, validationError, notFound, badRequest } from '../../shared/response'
+import { FastifyInstance } from 'fastify';
+import { ProductsService, ProductNotFoundError } from './products.service';
+import { ActivityService } from '../audit/audit.service';
+import {
+  createProductSchema,
+  updateProductSchema,
+  productQuerySchema,
+} from './products.schema';
+import { JwtPayload } from '@waregos/types';
+import { Prisma } from '@prisma/client';
+import { ok, validationError, notFound, badRequest } from '../../shared/response';
 
 export async function productsRoutes(app: FastifyInstance) {
-  const activityService = new ActivityService(app.prisma)
+  const activityService = new ActivityService(app.prisma);
 
   // ─── GET /api/products ───────────────────────────────────────
   app.get(
     '/',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as JwtPayload
-      const service = new ProductsService(app.prisma, payload.role)
-      const query = productQuerySchema.parse(request.query)
-      const result = await service.findAll(query)
-      return reply.send({ success: true, data: result.data, meta: result.meta })
+      const payload = request.user as JwtPayload;
+      const service = new ProductsService(app.prisma, payload.role);
+      const query = productQuerySchema.parse(request.query);
+      const result = await service.findAll(query);
+      return reply.send({ success: true, data: result.data, meta: result.meta });
     }
-  )
+  );
 
   // ─── GET /api/products/low-stock ────────────────────────────
   app.get(
     '/low-stock',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as JwtPayload
-      const service = new ProductsService(app.prisma, payload.role)
-      const data = await service.getLowStock()
-      return reply.send(ok(data))
+      const payload = request.user as JwtPayload;
+      const service = new ProductsService(app.prisma, payload.role);
+      const data = await service.getLowStock();
+      return reply.send(ok(data));
     }
-  )
+  );
 
   // ─── GET /api/products/expiring-soon ────────────────────────
   app.get(
     '/expiring-soon',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as JwtPayload
-      const service = new ProductsService(app.prisma, payload.role)
-      const data = await service.getExpiringSoon()
-      return reply.send(ok(data))
+      const payload = request.user as JwtPayload;
+      const service = new ProductsService(app.prisma, payload.role);
+      const data = await service.getExpiringSoon();
+      return reply.send(ok(data));
     }
-  )
+  );
 
   // ─── GET /api/products/dead-stock ───────────────────────────
   app.get(
     '/dead-stock',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const { days } = request.query as { days?: string }
-      const service = new ProductsService(app.prisma, 'ADMIN')
-      const data = await service.getDeadStock(days ? Number(days) : 30)
-      return reply.send(ok(data))
+      const { days } = request.query as { days?: string };
+      const service = new ProductsService(app.prisma, 'ADMIN');
+      const data = await service.getDeadStock(days ? Number(days) : 30);
+      return reply.send(ok(data));
     }
-  )
+  );
 
   // ─── GET /api/products/barcode/:barcode ─────────────────────
   app.get(
     '/barcode/:barcode',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as JwtPayload
-      const service = new ProductsService(app.prisma, payload.role)
-      const { barcode } = request.params as { barcode: string }
-      const product = await service.findByBarcode(barcode)
+      const payload = request.user as JwtPayload;
+      const service = new ProductsService(app.prisma, payload.role);
+      const { barcode } = request.params as { barcode: string };
+      const product = await service.findByBarcode(barcode);
       if (!product) {
-        return reply.code(404).send(notFound('Produk'))
+        return reply.code(404).send(notFound('Produk'));
       }
-      return reply.send(ok(product))
+      return reply.send(ok(product));
     }
-  )
+  );
 
   // ─── GET /api/products/:id/price-history ──────────────────── (Admin only)
   app.get(
     '/:id/price-history',
     { preHandler: [app.adminOnly] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
+      const { id } = request.params as { id: string };
 
       const history = await app.prisma.priceHistory.findMany({
         where: { productId: id },
@@ -88,7 +92,7 @@ export async function productsRoutes(app: FastifyInstance) {
         include: {
           user: { select: { name: true, username: true } },
         },
-      })
+      });
 
       return reply.send(
         ok(
@@ -102,40 +106,42 @@ export async function productsRoutes(app: FastifyInstance) {
             createdAt: h.createdAt.toISOString(),
           }))
         )
-      )
+      );
     }
-  )
+  );
 
   // ─── GET /api/products/:id ──────────────────────────────────
   app.get(
     '/:id',
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as JwtPayload
-      const service = new ProductsService(app.prisma, payload.role)
-      const { id } = request.params as { id: string }
-      const product = await service.findById(id)
+      const payload = request.user as JwtPayload;
+      const service = new ProductsService(app.prisma, payload.role);
+      const { id } = request.params as { id: string };
+      const product = await service.findById(id);
       if (!product) {
-        return reply.code(404).send(notFound('Produk'))
+        return reply.code(404).send(notFound('Produk'));
       }
-      return reply.send(ok(product))
+      return reply.send(ok(product));
     }
-  )
+  );
 
   // ─── POST /api/products ───────────────────────────────────── (Admin only)
   app.post(
     '/',
     { preHandler: [app.adminOnly] },
     async (request, reply) => {
-      const service = new ProductsService(app.prisma, 'ADMIN')
-      const result = createProductSchema.safeParse(request.body)
+      const service = new ProductsService(app.prisma, 'ADMIN');
+      const result = createProductSchema.safeParse(request.body);
       if (!result.success) {
-        return reply.code(400).send(validationError(result.error.errors[0].message))
+        return reply
+          .code(400)
+          .send(validationError(result.error.errors[0].message));
       }
-      const product = await service.create(result.data)
+      const product = await service.create(result.data);
 
       // Log aktivitas
-      const payload = request.user as JwtPayload
+      const payload = request.user as JwtPayload;
       await activityService.log({
         userId: payload.sub,
         action: 'CREATE_PRODUCT',
@@ -143,27 +149,35 @@ export async function productsRoutes(app: FastifyInstance) {
         entityId: product.id,
         details: { name: product.name } as Prisma.InputJsonValue,
         ipAddress: request.ip,
-      })
+      });
 
-      return reply.code(201).send(ok(product))
+      return reply.code(201).send(ok(product));
     }
-  )
+  );
 
   // ─── PATCH /api/products/:id ──────────────────────────────── (Admin only)
   app.patch(
     '/:id',
     { preHandler: [app.adminOnly] },
     async (request, reply) => {
-      const { id } = request.params as { id: string }
-      const payload = request.user as JwtPayload
-      const result = updateProductSchema.safeParse(request.body)
+      const { id } = request.params as { id: string };
+      const payload = request.user as JwtPayload;
+
+      const result = updateProductSchema.safeParse(request.body);
       if (!result.success) {
-        return reply.code(400).send(validationError(result.error.errors[0].message))
+        return reply
+          .code(400)
+          .send(validationError(result.error.errors[0].message));
       }
+
       try {
-        const service = new ProductsService(app.prisma, 'ADMIN')
-        // Panggil update dengan userId untuk pencatatan PriceHistory
-        const product = await service.update(id, result.data, 'ADMIN', payload.sub)
+        const service = new ProductsService(app.prisma, 'ADMIN');
+
+        // ⚠️ 3 argumen: (id, input, userId)
+        // userId = payload.sub (UUID user asli). JANGAN kirim role string
+        // seperti 'ADMIN' di sini — PriceHistory.changedBy itu FK ke User.id
+        // dan bakal gagal insert kalau diisi 'ADMIN'.
+        const product = await service.update(id, result.data, payload.sub);
 
         // Log aktivitas
         await activityService.log({
@@ -172,39 +186,55 @@ export async function productsRoutes(app: FastifyInstance) {
           entityType: 'product',
           entityId: id,
           ipAddress: request.ip,
-        })
+        });
 
-        return reply.send(ok(product))
-      } catch {
-        return reply.code(404).send(notFound('Produk'))
+        return reply.send(ok(product));
+      } catch (err: unknown) {
+        // Cuma 404 kalau produknya beneran gak ada.
+        // Error lain (FK constraint, validation, dsb) → 400 dengan pesan asli,
+        // biar bug serupa gak ketutupan lagi kayak "Produk tidak ditemukan".
+        if (err instanceof ProductNotFoundError) {
+          return reply.code(404).send(notFound('Produk'));
+        }
+        const message =
+          err instanceof Error ? err.message : 'Terjadi kesalahan';
+        request.log.error({ err, productId: id }, 'Failed to update product');
+        return reply.code(400).send(badRequest(message, 'UPDATE_FAILED'));
       }
     }
-  )
+  );
 
   // ─── DELETE /api/products/:id ─────────────────────────────── (Admin only)
   app.delete(
     '/:id',
     { preHandler: [app.adminOnly] },
     async (request, reply) => {
-      const service = new ProductsService(app.prisma, 'ADMIN')
-      const { id } = request.params as { id: string }
+      const service = new ProductsService(app.prisma, 'ADMIN');
+      const { id } = request.params as { id: string };
+
       try {
-        await service.delete(id)
+        await service.delete(id);
 
         // Log aktivitas
-        const payload = request.user as JwtPayload
+        const payload = request.user as JwtPayload;
         await activityService.log({
           userId: payload.sub,
           action: 'DELETE_PRODUCT',
           entityType: 'product',
           entityId: id,
           ipAddress: request.ip,
-        })
+        });
 
-        return reply.send(ok(null, 'Produk berhasil dihapus'))
-      } catch {
-        return reply.code(404).send(notFound('Produk'))
+        return reply.send(ok(null, 'Produk berhasil dihapus'));
+      } catch (err: unknown) {
+        if (err instanceof ProductNotFoundError) {
+          return reply.code(404).send(notFound('Produk'));
+        }
+        const message =
+          err instanceof Error ? err.message : 'Terjadi kesalahan';
+        request.log.error({ err, productId: id }, 'Failed to delete product');
+        return reply.code(400).send(badRequest(message, 'DELETE_FAILED'));
       }
     }
-  )
+  );
 }

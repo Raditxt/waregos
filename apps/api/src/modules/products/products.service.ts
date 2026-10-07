@@ -3,6 +3,18 @@ import { CreateProductInput, UpdateProductInput, ProductQueryInput } from './pro
 import { ProductWithRelations } from '../../shared/prisma-types';
 import { parsePagination, buildMeta } from '../../shared/pagination';
 
+// ─── CUSTOM ERROR ────────────────────────────────────────────
+// Dipakai biar route bisa bedain "produk gak ketemu" (→ 404) dari
+// error lain seperti FK constraint / validation (→ 400).
+// Tanpa ini, route bakal nangkep semua error jadi 404 dan nyamarin
+// penyebab asli (persis bug PriceHistory.changedBy = 'ADMIN' kemarin).
+export class ProductNotFoundError extends Error {
+  constructor(message = 'Produk tidak ditemukan') {
+    super(message);
+    this.name = 'ProductNotFoundError';
+  }
+}
+
 export class ProductsService {
   constructor(
     private readonly prisma: PrismaClient,
@@ -27,14 +39,6 @@ export class ProductsService {
       where.categoryId = query.categoryId;
     }
 
-    if (query.lowStock === 'true') {
-      // Filter low stock dilakukan setelah query karena Prisma tidak bisa membandingkan antar kolom secara langsung
-      // where.stock = { lte: this.prisma.product.fields.minStock } // tidak valid
-      // Kita akan ambil semua produk aktif lalu filter di JavaScript
-      // Alternatif: gunakan query raw jika diperlukan performa tinggi
-      // Untuk sekarang, kita gunakan pendekatan filter setelah fetch dengan batasan pagination
-    }
-
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -49,13 +53,13 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    // Filter low stock jika diminta
-    const filteredData = query.lowStock === 'true'
-      ? data.filter(p => p.stock <= p.minStock)
-      : data;
+    const filteredData =
+      query.lowStock === 'true'
+        ? data.filter((p) => p.stock <= p.minStock)
+        : data;
 
     return {
-      data: filteredData.map(p => this.formatProduct(p)),
+      data: filteredData.map((p) => this.formatProduct(p)),
       meta: buildMeta(total, page, limit),
     };
   }
@@ -111,9 +115,13 @@ export class ProductsService {
   }
 
   // ─── UPDATE PRODUCT ─────────────────────────────────────────
+  // Signature: (id, input, userId?)
+  // userId WAJIB berupa UUID user asli (payload.sub), BUKAN role string.
+  // Kalau userId diisi 'ADMIN' dsb → FK constraint di PriceHistory bakal
+  // gagal karena changedBy harus nunjuk ke User.id yang valid.
   async update(id: string, input: UpdateProductInput, userId?: string) {
     const existing = await this.prisma.product.findUnique({ where: { id } });
-    if (!existing) throw new Error('Produk tidak ditemukan');
+    if (!existing) throw new ProductNotFoundError();
 
     const product = await this.prisma.product.update({
       where: { id },
@@ -130,7 +138,9 @@ export class ProductsService {
         ...(input.expiryDate !== undefined && {
           expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
         }),
-        ...(input.expiryAlertDays !== undefined && { expiryAlertDays: input.expiryAlertDays }),
+        ...(input.expiryAlertDays !== undefined && {
+          expiryAlertDays: input.expiryAlertDays,
+        }),
       },
       include: {
         category: { select: { id: true, name: true } },
@@ -138,10 +148,21 @@ export class ProductsService {
       },
     });
 
-    // Catat price history jika harga beli berubah dan userId tersedia
+    // Catat price history jika harga beli berubah dan userId tersedia.
+    // Guard lengkap:
+    // - userId wajib ada (butuh pencatat)
+    // - input.buyPrice !== undefined → field memang dikirim di request
+    // - input.buyPrice !== null → bukan aksi "kosongkan harga beli"
+    // - existing.buyPrice !== null → ada harga lama untuk dibandingkan
+    // - nilainya memang berbeda → baru dicatat
+    // Kalau buyPrice lama null tapi baru diisi angka (mis. admin melengkapi
+    // produk yang tadi dibuat kasir tanpa harga beli), itu bukan "perubahan
+    // harga" melainkan pengisian awal — tidak perlu masuk history.
     if (
       userId &&
       input.buyPrice !== undefined &&
+      input.buyPrice !== null &&
+      existing.buyPrice !== null &&
       Number(input.buyPrice) !== Number(existing.buyPrice)
     ) {
       await this.prisma.priceHistory.create({
@@ -159,6 +180,9 @@ export class ProductsService {
 
   // ─── SOFT DELETE ────────────────────────────────────────────
   async delete(id: string): Promise<void> {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new ProductNotFoundError();
+
     await this.prisma.product.update({
       where: { id },
       data: { isActive: false },
@@ -174,8 +198,8 @@ export class ProductsService {
     });
 
     return products
-      .filter(p => p.stock <= p.minStock)
-      .map(p => ({
+      .filter((p) => p.stock <= p.minStock)
+      .map((p) => ({
         id: p.id,
         name: p.name,
         stock: p.stock,
@@ -194,12 +218,15 @@ export class ProductsService {
 
     const now = new Date();
     return products
-      .map(p => {
+      .map((p) => {
         const expiry = new Date(p.expiryDate!);
         const alertDate = new Date(expiry);
         alertDate.setDate(alertDate.getDate() - (p.expiryAlertDays ?? 7));
-        const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        const status = now > expiry ? 'expired' : now >= alertDate ? 'expiring_soon' : 'ok';
+        const daysLeft = Math.ceil(
+          (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const status =
+          now > expiry ? 'expired' : now >= alertDate ? 'expiring_soon' : 'ok';
         return {
           id: p.id,
           name: p.name,
@@ -210,7 +237,7 @@ export class ProductsService {
           status,
         };
       })
-      .filter(p => p.status !== 'ok');
+      .filter((p) => p.status !== 'ok');
   }
 
   // ─── DEAD STOCK REPORT ─────────────────────────────────────
@@ -232,28 +259,42 @@ export class ProductsService {
     });
 
     const now = new Date();
-    return products.map(p => {
+    return products.map((p) => {
       const daysSinceLastSold = p.lastSoldAt
-        ? Math.floor((now.getTime() - p.lastSoldAt.getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor(
+            (now.getTime() - p.lastSoldAt.getTime()) / (1000 * 60 * 60 * 24)
+          )
         : null;
+
+      // buyPrice bisa null → jaga-jaga biar stockValue gak salah hitung jadi 0
+      const buyPriceNum = p.buyPrice !== null ? Number(p.buyPrice) : null;
+
       return {
         id: p.id,
         name: p.name,
         stock: p.stock,
         unit: p.unit.symbol,
         category: p.category?.name ?? null,
-        buyPrice: Number(p.buyPrice),
-        stockValue: Number(p.buyPrice) * p.stock,
+        buyPrice: buyPriceNum,
+        stockValue: buyPriceNum !== null ? buyPriceNum * p.stock : null,
         lastSoldAt: p.lastSoldAt?.toISOString() ?? null,
         daysSinceLastSold,
-        status: daysSinceLastSold === null ? 'never_sold' : daysSinceLastSold >= 60 ? 'critical' : 'warning',
+        status:
+          daysSinceLastSold === null
+            ? 'never_sold'
+            : daysSinceLastSold >= 60
+              ? 'critical'
+              : 'warning',
       };
     });
   }
 
   // ─── FORMAT RESPONSE ────────────────────────────────────────
   private formatProduct(p: ProductWithRelations) {
-    const expiryStatus = this.calculateExpiryStatus(p.expiryDate, p.expiryAlertDays);
+    const expiryStatus = this.calculateExpiryStatus(
+      p.expiryDate,
+      p.expiryAlertDays
+    );
 
     return {
       id: p.id,
@@ -265,7 +306,13 @@ export class ProductsService {
       unitId: p.unitId,
       unitName: p.unit.name,
       unitSymbol: p.unit.symbol,
-      buyPrice: this.role === 'ADMIN' ? Number(p.buyPrice) : null,
+      // buyPrice bisa null (mis. user non-ADMIN atau data lama yang belum diisi)
+      buyPrice:
+        this.role === 'ADMIN'
+          ? p.buyPrice !== null
+            ? Number(p.buyPrice)
+            : null
+          : null,
       sellPrice: Number(p.sellPrice),
       stock: p.stock,
       minStock: p.minStock,
