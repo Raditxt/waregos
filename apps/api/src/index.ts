@@ -22,7 +22,7 @@ import { Bonjour } from 'bonjour-service';
 import { authRoutes } from './modules/auth/auth.route';
 import { usersRoutes } from './modules/users/users.route';
 import { productsRoutes } from './modules/products/products.route';
-import { catalogRoutes } from './modules/products/catalog.route';
+import { catalogRoutes } from './modules/catalog/catalog.route';
 import { transactionsRoutes } from './modules/transactions/transactions.route';
 import { purchasesRoutes } from './modules/stock/purchases.route';
 import { reportsRoutes } from './modules/reports/reports.route';

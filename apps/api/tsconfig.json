@@ -15,6 +15,6 @@
       "@waregos/utils": ["../../packages/utils/src/index.ts"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../web/src/app/products/category-manager.tsx"],
   "exclude": ["node_modules", "dist"]
 }

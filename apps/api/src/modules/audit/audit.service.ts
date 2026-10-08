@@ -15,7 +15,10 @@ export type ActivityAction =
   | 'CREATE_PURCHASE'
   | 'CREATE_USER'
   | 'UPDATE_USER'
-  | 'ADJUST_STOCK';
+  | 'ADJUST_STOCK'
+  | 'CREATE_CATEGORY'
+  | 'UPDATE_CATEGORY'
+  | 'DELETE_CATEGORY';
 
 export interface LogActivityParams {
   userId: string;
