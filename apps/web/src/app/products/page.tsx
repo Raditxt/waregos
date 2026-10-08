@@ -10,10 +10,11 @@ import { id } from 'date-fns/locale'
 import {
   Plus, Search, Pencil, Trash2, Loader2,
   PackageX, History, X, AlertTriangle,
-  Package, ChevronDown, ChevronUp
+  Package, ChevronDown, ChevronUp, Tags
 } from 'lucide-react'
+import { CategoryManager } from './category-manager'
 
-interface Category { id: string; name: string }
+interface Category { id: string; name: string; productCount: number }
 interface Unit { id: string; name: string; symbol: string }
 
 interface ProductDto {
@@ -67,6 +68,10 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1)
   const limit = 20
 
+  // Category filter + manager
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+
   // Form
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -87,11 +92,11 @@ export default function ProductsPage() {
   const marginWarning = form.buyPrice && form.sellPrice &&
     Number(parseNumber(form.sellPrice)) <= Number(parseNumber(form.buyPrice))
 
-  const fetchProducts = useCallback(async (p = 1, q = search) => {
+  const fetchProducts = useCallback(async (p = 1, q = search, cat = categoryFilter) => {
     setLoading(true)
     try {
       const res = await api.get('/products', {
-        params: { page: p, limit, ...(q && { search: q }) }
+        params: { page: p, limit, ...(q && { search: q }), ...(cat && { categoryId: cat }) }
       })
       setProducts(res.data.data ?? [])
       setTotal(res.data.meta?.total ?? 0)
@@ -101,7 +106,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, categoryFilter])
 
   useEffect(() => {
     const init = async () => {
@@ -142,8 +147,8 @@ export default function ProductsPage() {
   }
 
   const handleSave = async () => {
-    if (!form.name || !form.unitId || !form.sellPrice) {
-      toast.error('Nama, satuan, dan harga jual wajib diisi')
+    if (!form.name || !form.unitId || !form.sellPrice || !form.buyPrice) {
+      toast.error('Nama, satuan, harga beli, dan harga jual wajib diisi')
       return
     }
     if (marginWarning) {
@@ -158,7 +163,7 @@ export default function ProductsPage() {
         barcode: form.barcode || undefined,
         categoryId: form.categoryId || undefined,
         unitId: form.unitId,
-        buyPrice: form.buyPrice ? Number(parseNumber(form.buyPrice)) : null,
+        buyPrice: Number(parseNumber(form.buyPrice)),
         sellPrice: Number(parseNumber(form.sellPrice)),
         stock: form.stock ? Number(form.stock) : undefined,
         minStock: form.minStock ? Number(form.minStock) : undefined,
@@ -215,6 +220,30 @@ export default function ProductsPage() {
     fetchProducts(1, q)
   }
 
+  const handleCategoryFilter = (id: string) => {
+    setCategoryFilter(id)
+    fetchProducts(1, search, id)
+  }
+
+  // Dipanggil CategoryManager setiap kali ada tambah/ubah/hapus
+  const refreshCategories = async () => {
+    const res = await api.get('/catalog/categories')
+    const list: Category[] = res.data.data ?? []
+    setCategories(list)
+
+    // Kategori yang sedang dipilih di form / filter bisa saja baru dihapus
+    setForm((prev) =>
+      !prev.categoryId || list.some((c) => c.id === prev.categoryId)
+        ? prev
+        : { ...prev, categoryId: '' }
+    )
+    const filterValid = !categoryFilter || list.some((c) => c.id === categoryFilter)
+    if (!filterValid) setCategoryFilter('')
+
+    // Nama kategori di tabel produk ikut berubah kalau ada yang di-rename
+    await fetchProducts(1, search, filterValid ? categoryFilter : '')
+  }
+
   const expiryBadge = (status: ProductDto['expiryStatus']) => {
     if (!status || status === 'ok') return null
     return (
@@ -243,38 +272,70 @@ export default function ProductsPage() {
           </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-            style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-          >
-            <Plus className="w-4 h-4" />
-            Tambah Produk
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCategoryManagerOpen(true)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
+              style={{ background: 'var(--muted)', color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.color = 'var(--primary)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--muted)'; e.currentTarget.style.color = 'var(--muted-foreground)' }}
+            >
+              <Tags className="w-4 h-4" />
+              Kategori
+            </button>
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+              style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            >
+              <Plus className="w-4 h-4" />
+              Tambah Produk
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Search */}
-      <div
-        className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
-        <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--muted-foreground)' }} />
-        <input
-          type="text"
-          placeholder="Cari produk..."
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="flex-1 bg-transparent text-sm outline-none"
-          style={{ color: 'var(--foreground)' }}
-        />
-        {search && (
-          <button onClick={() => handleSearch('')}>
-            <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
-          </button>
-        )}
+      {/* Search + Filter kategori */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div
+          className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl"
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+        >
+          <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--muted-foreground)' }} />
+          <input
+            type="text"
+            placeholder="Cari produk..."
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="flex-1 bg-transparent text-sm outline-none"
+            style={{ color: 'var(--foreground)' }}
+          />
+          {search && (
+            <button onClick={() => handleSearch('')}>
+              <X className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+            </button>
+          )}
+        </div>
+
+        <div className="relative sm:w-56">
+          <select
+            value={categoryFilter}
+            onChange={(e) => handleCategoryFilter(e.target.value)}
+            className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+            style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+          >
+            <option value="">Semua kategori</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <ChevronDown
+            className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--muted-foreground)' }}
+          />
+        </div>
       </div>
 
       {/* Products — Mobile Card + Desktop Table */}
@@ -540,9 +601,19 @@ export default function ProductsPage() {
               {/* Kategori + Satuan */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
-                    KATEGORI
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                      KATEGORI
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCategoryManagerOpen(true)}
+                      className="text-xs font-semibold"
+                      style={{ color: 'var(--primary)' }}
+                    >
+                      + Kelola
+                    </button>
+                  </div>
                   <div className="relative">
                     <select
                       value={form.categoryId}
@@ -592,7 +663,7 @@ export default function ProductsPage() {
                 {isAdmin && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
-                      HARGA BELI
+                      HARGA BELI *
                     </label>
                     <div
                       className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
@@ -939,6 +1010,14 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Category Manager */}
+      <CategoryManager
+        open={categoryManagerOpen}
+        categories={categories}
+        onClose={() => setCategoryManagerOpen(false)}
+        onChanged={refreshCategories}
+      />
     </div>
   )
 }

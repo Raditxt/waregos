@@ -48,7 +48,6 @@ export default function PurchasesPage() {
   const [page, setPage] = useState(1)
   const limit = 20
 
-  // Dialog
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [supplierName, setSupplierName] = useState('')
@@ -58,8 +57,6 @@ export default function PurchasesPage() {
   const [searchResults, setSearchResults] = useState<Product[]>([])
   const [searching, setSearching] = useState(false)
 
-  // Quick-add produk baru (Temuan B) — biar gak perlu pindah halaman
-  // pas nemu barang yang belum terdaftar di tengah sesi restok.
   const [categories, setCategories] = useState<Category[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [quickAddOpen, setQuickAddOpen] = useState(false)
@@ -67,9 +64,9 @@ export default function PurchasesPage() {
   const [quickAddCategoryId, setQuickAddCategoryId] = useState('')
   const [quickAddUnitId, setQuickAddUnitId] = useState('')
   const [quickAddSellPrice, setQuickAddSellPrice] = useState('')
+  const [quickAddBuyPrice, setQuickAddBuyPrice] = useState('')
   const [quickAddSaving, setQuickAddSaving] = useState(false)
 
-  // Expanded rows
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const totalAmount = items.reduce((s, i) => s + i.buyPrice * i.quantity, 0)
@@ -151,7 +148,6 @@ export default function PurchasesPage() {
     setItems(prev => prev.filter(i => i.productId !== productId))
   }
 
-  // ===== Temuan A: cegah dialog ketutup diam-diam kalau udah ada item =====
   const handleCloseAttempt = () => {
     if (items.length > 0) {
       const ok = confirm(
@@ -163,12 +159,12 @@ export default function PurchasesPage() {
     setQuickAddOpen(false)
   }
 
-  // ===== Temuan B: quick-add produk baru tanpa keluar dialog =====
   const openQuickAdd = () => {
     setQuickAddName(productSearch.trim())
     setQuickAddCategoryId('')
     setQuickAddUnitId('')
     setQuickAddSellPrice('')
+    setQuickAddBuyPrice('')
     setQuickAddOpen(true)
   }
 
@@ -177,8 +173,8 @@ export default function PurchasesPage() {
   }
 
   const handleQuickAddSave = async () => {
-    if (!quickAddName.trim() || !quickAddUnitId || !quickAddSellPrice) {
-      toast.error('Nama, satuan, dan harga jual wajib diisi')
+    if (!quickAddName.trim() || !quickAddUnitId || !quickAddSellPrice || !quickAddBuyPrice) {
+      toast.error('Nama, satuan, harga beli, dan harga jual wajib diisi')
       return
     }
     setQuickAddSaving(true)
@@ -188,6 +184,7 @@ export default function PurchasesPage() {
         categoryId: quickAddCategoryId || undefined,
         unitId: quickAddUnitId,
         sellPrice: Number(parseNumber(quickAddSellPrice)),
+        buyPrice: Number(parseNumber(quickAddBuyPrice)),
       })
       toast.success('Produk baru berhasil dibuat')
       const newProduct: Product = res.data.data
@@ -283,7 +280,7 @@ export default function PurchasesPage() {
             >
               <ShoppingBag className="w-6 h-6" style={{ color: 'var(--muted-foreground)' }} />
             </div>
-            <div className="text-center">
+            <div className="text-center px-4">
               <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                 Belum ada data pembelian
               </p>
@@ -297,32 +294,31 @@ export default function PurchasesPage() {
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {purchases.map((p) => (
               <div key={p.id}>
-                {/* Row */}
                 <button
                   onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
                   className="w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors"
                   onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
                       className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: 'rgba(249,115,22,0.1)' }}
                     >
                       <ShoppingBag className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>
                         {p.invoiceNumber}
                       </p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted-foreground)' }}>
                         {format(new Date(p.createdAt), 'd MMM yyyy, HH:mm', { locale: id })}
                         {p.supplierName && ` · ${p.supplierName}`}
                         {` · ${p.userName}`}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <p className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
                         {formatRupiah(p.totalAmount)}
@@ -338,7 +334,6 @@ export default function PurchasesPage() {
                   </div>
                 </button>
 
-                {/* Expanded detail */}
                 {expandedId === p.id && (
                   <div
                     className="px-4 pb-4"
@@ -353,18 +348,18 @@ export default function PurchasesPage() {
                       {p.items.map((item, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between py-2 px-3 rounded-xl"
+                          className="flex items-center justify-between py-2 px-3 rounded-xl gap-3"
                           style={{ background: 'var(--card)' }}
                         >
-                          <div>
-                            <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
                               {item.productName}
                             </p>
                             <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
                               {item.quantity} {item.unitSymbol} × {formatRupiah(item.buyPrice)}
                             </p>
                           </div>
-                          <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                          <p className="text-sm font-bold shrink-0" style={{ color: 'var(--primary)' }}>
                             {formatRupiah(item.buyPrice * item.quantity)}
                           </p>
                         </div>
@@ -377,7 +372,6 @@ export default function PurchasesPage() {
           </div>
         )}
 
-        {/* Pagination */}
         {total > limit && (
           <div
             className="flex items-center justify-between px-4 py-3"
@@ -418,24 +412,24 @@ export default function PurchasesPage() {
         )}
       </div>
 
-      {/* Dialog Catat Pembelian */}
+      {/* Dialog — compact: max-w-lg, tinggi auto dengan cap 85vh */}
       {dialogOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
           style={{ background: 'rgba(0,0,0,0.6)' }}
           onClick={handleCloseAttempt}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="w-full sm:max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[85vh]"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
+            {/* Header — fixed */}
             <div
-              className="flex items-center justify-between px-6 py-4 shrink-0"
+              className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 shrink-0"
               style={{ borderBottom: '1px solid var(--border)' }}
             >
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-base font-bold" style={{ color: 'var(--foreground)' }}>
                   Catat Pembelian
                 </h2>
@@ -445,26 +439,29 @@ export default function PurchasesPage() {
               </div>
               <button
                 onClick={handleCloseAttempt}
-                className="p-1.5 rounded-lg"
+                className="p-1.5 rounded-lg shrink-0"
                 style={{ color: 'var(--muted-foreground)' }}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* Supplier + Notes */}
+            {/* Top section — supplier, catatan, search (fixed) */}
+            <div
+              className="shrink-0 px-4 sm:px-5 py-3 space-y-3"
+              style={{ borderBottom: '1px solid var(--border)' }}
+            >
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                     NAMA SUPPLIER
                   </label>
                   <input
                     type="text"
-                    placeholder="Opsional — nama supplier"
+                    placeholder="Opsional"
                     value={supplierName}
                     onChange={(e) => setSupplierName(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{
                       background: 'var(--muted)',
                       border: '1px solid var(--border)',
@@ -472,16 +469,16 @@ export default function PurchasesPage() {
                     }}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                     CATATAN
                   </label>
                   <input
                     type="text"
-                    placeholder="Opsional — keterangan pembelian"
+                    placeholder="Opsional"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{
                       background: 'var(--muted)',
                       border: '1px solid var(--border)',
@@ -491,24 +488,14 @@ export default function PurchasesPage() {
                 </div>
               </div>
 
-              {/* ─── Search produk (STICKY) ───────────────────────────────
-                  Dibuat sticky biar search bar + tombol "Tambah produk baru"
-                  tetap kelihatan saat user scroll daftar item yang panjang.
-                  Negative margin dipakai buat "membatalkan" px-6 py-4 dari
-                  parent, supaya background sticky-nya full-bleed rapi. */}
-              <div
-                className="sticky -top-4 z-30 -mx-6 -mt-4 px-6 pt-4 pb-3 space-y-1.5"
-                style={{
-                  background: 'var(--card)',
-                  borderBottom: '1px solid var(--border)',
-                }}
-              >
+              {/* Search produk */}
+              <div className="space-y-1">
                 <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                   TAMBAH PRODUK
                 </label>
                 <div className="relative">
                   <div
-                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg"
                     style={{
                       background: 'var(--muted)',
                       border: '1px solid var(--border)',
@@ -523,7 +510,7 @@ export default function PurchasesPage() {
                       placeholder="Cari produk untuk direstok..."
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
-                      className="flex-1 bg-transparent text-sm outline-none"
+                      className="flex-1 bg-transparent text-sm outline-none min-w-0"
                       style={{ color: 'var(--foreground)' }}
                     />
                     {productSearch && (
@@ -533,10 +520,9 @@ export default function PurchasesPage() {
                     )}
                   </div>
 
-                  {/* Dropdown hasil pencarian */}
                   {searchResults.length > 0 && (
                     <div
-                      className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-10"
+                      className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-30 max-h-55 overflow-y-auto"
                       style={{
                         background: 'var(--card)',
                         border: '1px solid var(--border)',
@@ -547,15 +533,15 @@ export default function PurchasesPage() {
                         <button
                           key={p.id}
                           onClick={() => addItem(p)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 text-left text-sm transition-colors"
+                          className="w-full flex items-center justify-between px-3 py-2 text-left text-sm transition-colors gap-3"
                           style={{ borderBottom: '1px solid var(--border)' }}
                           onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+                          <span className="font-medium truncate" style={{ color: 'var(--foreground)' }}>
                             {p.name}
                           </span>
-                          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                          <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>
                             Stok: {p.stock} {p.unitSymbol}
                           </span>
                         </button>
@@ -563,36 +549,37 @@ export default function PurchasesPage() {
                     </div>
                   )}
 
-                  {/* Temuan B: gak ketemu → tawarkan quick-add */}
                   {!searching && productSearch.trim() !== '' && searchResults.length === 0 && !quickAddOpen && (
                     <div
-                      className="absolute top-full left-0 right-0 mt-1 rounded-xl p-3 z-10 flex items-center justify-between"
+                      className="absolute top-full left-0 right-0 mt-1 rounded-xl p-2.5 z-30 flex items-center justify-between gap-2"
                       style={{
                         background: 'var(--card)',
                         border: '1px solid var(--border)',
                         boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                       }}
                     >
-                      <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                      <p className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
                         &quot;{productSearch}&quot; belum terdaftar
                       </p>
                       <button
                         onClick={openQuickAdd}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0"
                         style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
-                        Tambah produk baru
+                        Produk baru
                       </button>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Quick-add produk baru — inline, gak keluar dari dialog */}
+            {/* Scrollable content */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
               {quickAddOpen && (
                 <div
-                  className="rounded-xl p-4 space-y-3"
+                  className="rounded-xl p-3 space-y-2.5"
                   style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)' }}
                 >
                   <div className="flex items-center justify-between">
@@ -604,7 +591,7 @@ export default function PurchasesPage() {
                     </button>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                       NAMA PRODUK *
                     </label>
@@ -612,13 +599,13 @@ export default function PurchasesPage() {
                       type="text"
                       value={quickAddName}
                       onChange={(e) => setQuickAddName(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                       style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
                       <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                         KATEGORI
                       </label>
@@ -626,21 +613,21 @@ export default function PurchasesPage() {
                         <select
                           value={quickAddCategoryId}
                           onChange={(e) => setQuickAddCategoryId(e.target.value)}
-                          className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+                          className="w-full appearance-none px-3 py-2 pr-8 rounded-lg text-sm outline-none"
                           style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                         >
-                          <option value="">Pilih kategori</option>
+                          <option value="">Pilih</option>
                           {categories.map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
                         <ChevronDown
-                          className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                          className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
                           style={{ color: 'var(--muted-foreground)' }}
                         />
                       </div>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                       <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                         SATUAN *
                       </label>
@@ -648,28 +635,28 @@ export default function PurchasesPage() {
                         <select
                           value={quickAddUnitId}
                           onChange={(e) => setQuickAddUnitId(e.target.value)}
-                          className="w-full appearance-none px-3 py-2.5 pr-10 rounded-xl text-sm outline-none"
+                          className="w-full appearance-none px-3 py-2 pr-8 rounded-lg text-sm outline-none"
                           style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
                         >
-                          <option value="">Pilih satuan</option>
+                          <option value="">Pilih</option>
                           {units.map(u => (
                             <option key={u.id} value={u.id}>{u.name} ({u.symbol})</option>
                           ))}
                         </select>
                         <ChevronDown
-                          className="w-4 h-4 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                          className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
                           style={{ color: 'var(--muted-foreground)' }}
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                       HARGA JUAL *
                     </label>
                     <div
-                      className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg"
                       style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
                     >
                       <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
@@ -682,135 +669,157 @@ export default function PurchasesPage() {
                           const raw = e.target.value.replace(/\D/g, '')
                           setQuickAddSellPrice(raw ? formatNumber(raw) : '')
                         }}
-                        className="flex-1 bg-transparent text-sm outline-none"
+                        className="flex-1 bg-transparent text-sm outline-none min-w-0"
                         style={{ color: 'var(--foreground)' }}
                       />
                     </div>
                   </div>
 
-                  <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                    Harga beli diisi di baris pembelian setelah produk ditambahkan. Detail lain (SKU, barcode, kadaluarsa) bisa dilengkapi nanti di halaman Produk.
-                  </p>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                      HARGA BELI *
+                    </label>
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                    >
+                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={quickAddBuyPrice}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '')
+                          setQuickAddBuyPrice(raw ? formatNumber(raw) : '')
+                        }}
+                        className="flex-1 bg-transparent text-sm outline-none min-w-0"
+                        style={{ color: 'var(--foreground)' }}
+                      />
+                    </div>
+                  </div>
 
                   <button
                     onClick={handleQuickAddSave}
                     disabled={quickAddSaving}
-                    className="w-full py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                    className="w-full py-2 rounded-lg text-sm font-bold text-white flex items-center justify-center gap-2"
                     style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
                   >
                     {quickAddSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Buat & Tambahkan ke Daftar
+                    Buat & Tambahkan
                   </button>
                 </div>
               )}
 
-              {/* Items list */}
-              {items.length > 0 && (
-                <div className="space-y-2">
+              {items.length > 0 ? (
+                <div className="space-y-1.5">
                   <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
-                    DAFTAR PRODUK ({items.length} item)
+                    DAFTAR PRODUK ({items.length})
                   </label>
                   {items.map((item) => (
                     <div
                       key={item.productId}
-                      className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                      className="px-3 py-2.5 rounded-xl space-y-2"
                       style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
                     >
-                      <div className="flex-1 min-w-0">
+                      {/* Baris 1: nama + hapus */}
+                      <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
                           {item.productName}
                         </p>
-                      </div>
-
-                      {/* Jumlah */}
-                      <div className="space-y-0.5">
-                        <p className="text-xs text-center" style={{ color: 'var(--muted-foreground)' }}>Jumlah</p>
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.productId, 'quantity', Number(e.target.value))}
-                          className="w-16 px-2 py-1.5 rounded-lg text-sm text-center outline-none"
-                          style={{
-                            background: 'var(--card)',
-                            border: '1px solid var(--border)',
-                            color: 'var(--foreground)',
-                          }}
-                        />
-                      </div>
-
-                      {/* Harga beli */}
-                      <div className="space-y-0.5">
-                        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Harga Beli</p>
-                        <div
-                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg"
-                          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                        <button
+                          onClick={() => removeItem(item.productId)}
+                          className="p-1 rounded-md shrink-0"
+                          style={{ color: 'var(--muted-foreground)' }}
                         >
-                          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Baris 2: qty + harga + subtotal */}
+                      <div className="flex items-center gap-2">
+                        <div className="space-y-0.5">
+                          <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>Jml</p>
                           <input
-                            type="text"
-                            inputMode="numeric"
-                            value={formatNumber(String(item.buyPrice))}
-                            onChange={(e) => {
-                              const raw = parseNumber(e.target.value)
-                              updateItem(item.productId, 'buyPrice', Number(raw) || 0)
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateItem(item.productId, 'quantity', Number(e.target.value))}
+                            className="w-14 px-2 py-1 rounded-md text-sm text-center outline-none"
+                            style={{
+                              background: 'var(--card)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--foreground)',
                             }}
-                            className="w-24 bg-transparent text-sm outline-none"
-                            style={{ color: 'var(--foreground)' }}
                           />
                         </div>
-                      </div>
 
-                      {/* Subtotal */}
-                      <div className="text-right min-w-20">
-                        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Subtotal</p>
-                        <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
-                          {formatRupiah(item.buyPrice * item.quantity)}
-                        </p>
-                      </div>
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>Harga Beli</p>
+                          <div
+                            className="flex items-center gap-1 px-2 py-1 rounded-md"
+                            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
+                          >
+                            <span className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={formatNumber(String(item.buyPrice))}
+                              onChange={(e) => {
+                                const raw = parseNumber(e.target.value)
+                                updateItem(item.productId, 'buyPrice', Number(raw) || 0)
+                              }}
+                              className="w-full bg-transparent text-sm outline-none min-w-0"
+                              style={{ color: 'var(--foreground)' }}
+                            />
+                          </div>
+                        </div>
 
-                      <button
-                        onClick={() => removeItem(item.productId)}
-                        className="p-1.5 rounded-lg shrink-0 transition-colors"
-                        style={{ color: 'var(--muted-foreground)' }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'var(--error-light)'
-                          e.currentTarget.style.color = 'var(--error)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'transparent'
-                          e.currentTarget.style.color = 'var(--muted-foreground)'
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>Subtotal</p>
+                          <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>
+                            {formatRupiah(item.buyPrice * item.quantity)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ))}
+                </div>
+              ) : !quickAddOpen && (
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: 'var(--muted)' }}
+                  >
+                    <Search className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+                  </div>
+                  <p className="text-xs text-center px-4" style={{ color: 'var(--muted-foreground)' }}>
+                    Cari produk di atas untuk mulai mencatat pembelian.
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Footer */}
+            {/* Footer — fixed */}
             <div
-              className="px-6 py-4 shrink-0 space-y-3"
+              className="px-4 sm:px-5 py-3 shrink-0 space-y-2.5"
               style={{ borderTop: '1px solid var(--border)' }}
             >
-              {/* Total */}
               {items.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold" style={{ color: 'var(--muted-foreground)' }}>
+                  <span className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                     Total Pembelian
                   </span>
-                  <span className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
+                  <span className="text-base font-bold" style={{ color: 'var(--foreground)' }}>
                     {formatRupiah(totalAmount)}
                   </span>
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={handleCloseAttempt}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                  className="flex-1 py-2 rounded-lg text-sm font-medium"
                   style={{
                     background: 'var(--muted)',
                     color: 'var(--foreground)',
@@ -822,16 +831,17 @@ export default function PurchasesPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving || items.length === 0}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                  className="flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
                   style={{
                     background: items.length === 0
                       ? 'var(--muted)'
                       : 'linear-gradient(135deg, #f97316, #f59e0b)',
                     color: items.length === 0 ? 'var(--muted-foreground)' : '#fff',
+                    opacity: saving ? 0.7 : 1,
                   }}
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Simpan Pembelian
+                  Simpan
                 </button>
               </div>
             </div>

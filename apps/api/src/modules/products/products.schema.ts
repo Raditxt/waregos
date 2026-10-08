@@ -7,16 +7,8 @@ export const createProductSchema = z.object({
   categoryId: z.string().uuid({ message: 'Kategori tidak valid' }).optional(),
   unitId: z.string().uuid({ message: 'Satuan wajib dipilih' }),
 
-  // FIX: buyPrice dibuat nullable + optional agar konsisten dengan ProductDto
-  // (number | null) dan form yang memperlakukan field ini sebagai opsional.
-  // - .nullable() → menerima null eksplisit dari client (mis. form mengirim null
-  //   saat user sengaja mengosongkan field).
-  // - .optional() → menerima undefined saat field tidak dikirim sama sekali.
-  buyPrice: z
-    .number()
-    .positive({ message: 'Harga beli harus lebih dari 0' })
-    .nullable()
-    .optional(),
+  // FIX: buyPrice kini wajib diisi (required) dan harus > 0.
+  buyPrice: z.number().positive({ message: 'Harga beli harus lebih dari 0' }),
 
   sellPrice: z.number().positive({ message: 'Harga jual harus lebih dari 0' }),
 
