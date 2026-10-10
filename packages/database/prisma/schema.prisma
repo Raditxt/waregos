@@ -58,11 +58,11 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  transactions    Transaction[]
-  purchases       Purchase[]
-  adjustments     StockMovement[]
-  activityLogs    ActivityLog[]
-  priceHistory    PriceHistory[]
+  transactions     Transaction[]
+  purchases        Purchase[]
+  adjustments      StockMovement[]
+  activityLogs     ActivityLog[]
+  priceHistory     PriceHistory[]
   debtTransactions DebtTransaction[]
 
   @@map("users")
@@ -73,48 +73,48 @@ model User {
 // ============================================
 
 model Category {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  createdAt DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
 
   products  Product[]
   @@map("categories")
 }
 
 model Unit {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  symbol    String    @unique
+  id        String   @id @default(uuid())
+  name      String   @unique
+  symbol    String   @unique
 
   products  Product[]
   @@map("units")
 }
 
 model Product {
-  id               String   @id @default(uuid())
-  name             String
-  sku              String?  @unique
-  barcode          String?  @unique
-  categoryId       String?  @map("category_id")
-  unitId           String   @map("unit_id")
+  id              String    @id @default(uuid())
+  name            String
+  sku             String?   @unique
+  barcode         String?   @unique
+  categoryId      String?   @map("category_id")
+  unitId          String    @map("unit_id")
 
   // FIX: dibuat nullable — produk bisa dibuat tanpa tahu harga beli saat ini.
   // Tetap wajib di TransactionItem & PurchaseItem (lihat di bawah) karena
   // di sana mencatat harga beli AKTUAL saat transaksi/pembelian terjadi.
-  buyPrice         Decimal? @map("buy_price") @db.Decimal(12, 2)
+  buyPrice        Decimal?  @map("buy_price") @db.Decimal(12, 2)
 
-  sellPrice        Decimal  @map("sell_price") @db.Decimal(12, 2)
-  stock            Int      @default(0)
-  minStock         Int      @default(5) @map("min_stock")
-  expiryDate       DateTime? @map("expiry_date")
-  expiryAlertDays  Int      @default(7) @map("expiry_alert_days")
-  lastSoldAt       DateTime? @map("last_sold_at")
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  sellPrice       Decimal   @map("sell_price") @db.Decimal(12, 2)
+  stock           Int       @default(0)
+  minStock        Int       @default(5) @map("min_stock")
+  expiryDate      DateTime? @map("expiry_date")
+  expiryAlertDays Int       @default(7) @map("expiry_alert_days")
+  lastSoldAt      DateTime? @map("last_sold_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  category         Category?       @relation(fields: [categoryId], references: [id])
-  unit             Unit            @relation(fields: [unitId], references: [id])
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  unit             Unit              @relation(fields: [unitId], references: [id])
   transactionItems TransactionItem[]
   stockMovements   StockMovement[]
   purchaseItems    PurchaseItem[]
@@ -131,20 +131,25 @@ model Product {
 // ============================================
 
 model Transaction {
-  id            String            @id @default(uuid())
-  invoiceNumber String            @unique @map("invoice_number")
-  userId        String            @map("user_id")
-  status        TransactionStatus @default(COMPLETED)
-  paymentMethod PaymentMethod     @default(CASH) @map("payment_method")
-  totalAmount   Decimal           @map("total_amount") @db.Decimal(12, 2)
-  paidAmount    Decimal           @map("paid_amount") @db.Decimal(12, 2)
-  changeAmount  Decimal           @map("change_amount") @db.Decimal(12, 2)
-  notes         String?
-  createdAt     DateTime          @default(now()) @map("created_at")
+  id             String            @id @default(uuid())
+  invoiceNumber  String            @unique @map("invoice_number")
+  userId         String            @map("user_id")
+  status         TransactionStatus @default(COMPLETED)
+  paymentMethod  PaymentMethod     @default(CASH) @map("payment_method")
+  totalAmount    Decimal           @map("total_amount") @db.Decimal(12, 2)
+  paidAmount     Decimal           @map("paid_amount") @db.Decimal(12, 2)
+  changeAmount   Decimal           @map("change_amount") @db.Decimal(12, 2)
+  notes          String?
 
-  user            User              @relation(fields: [userId], references: [id])
-  items           TransactionItem[]
-  stockMovements  StockMovement[]
+  // ✅ NEW: idempotency key untuk mencegah double-submit / retry ganda.
+  // Nullable agar transaksi lama (legacy) tetap valid.
+  idempotencyKey String?           @unique @map("idempotency_key")
+
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  user             User              @relation(fields: [userId], references: [id])
+  items            TransactionItem[]
+  stockMovements   StockMovement[]
   debtTransactions DebtTransaction[]
 
   @@index([createdAt])
@@ -176,12 +181,12 @@ model TransactionItem {
 // ============================================
 
 model Supplier {
-  id        String     @id @default(uuid())
+  id        String   @id @default(uuid())
   name      String
   phone     String?
   address   String?
-  isActive  Boolean    @default(true) @map("is_active")
-  createdAt DateTime   @default(now()) @map("created_at")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
 
   purchases Purchase[]
   @@map("suppliers")
@@ -198,9 +203,9 @@ model Purchase {
   purchasedAt   DateTime       @default(now()) @map("purchased_at")
   createdAt     DateTime       @default(now()) @map("created_at")
 
-  supplier      Supplier?      @relation(fields: [supplierId], references: [id])
-  user          User           @relation(fields: [userId], references: [id])
-  items         PurchaseItem[]
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  user           User            @relation(fields: [userId], references: [id])
+  items          PurchaseItem[]
   stockMovements StockMovement[]
 
   @@index([purchasedAt])
@@ -278,16 +283,16 @@ model ActivityLog {
 // ============================================
 
 model PriceHistory {
-  id         String   @id @default(uuid())
-  productId  String   @map("product_id")
-  oldPrice   Decimal  @map("old_price") @db.Decimal(12, 2)
-  newPrice   Decimal  @map("new_price") @db.Decimal(12, 2)
-  changedBy  String   @map("changed_by")
-  reason     String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  oldPrice  Decimal  @map("old_price") @db.Decimal(12, 2)
+  newPrice  Decimal  @map("new_price") @db.Decimal(12, 2)
+  changedBy String   @map("changed_by")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
 
-  product    Product  @relation(fields: [productId], references: [id])
-  user       User     @relation(fields: [changedBy], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [changedBy], references: [id])
 
   @@index([productId])
   @@index([createdAt])
@@ -299,18 +304,18 @@ model PriceHistory {
 // ============================================
 
 model DebtTransaction {
-  id              String       @id @default(uuid())
-  customerName    String       @map("customer_name")
-  transactionId   String?      @map("transaction_id")
-  type            String       // DEBT | PAYMENT
-  amount          Decimal      @db.Decimal(12, 2)
-  items           Json?
-  notes           String?
-  createdBy       String       @map("created_by")
-  createdAt       DateTime     @default(now()) @map("created_at")
+  id            String       @id @default(uuid())
+  customerName  String       @map("customer_name")
+  transactionId String?      @map("transaction_id")
+  type          String       // DEBT | PAYMENT
+  amount        Decimal      @db.Decimal(12, 2)
+  items         Json?
+  notes         String?
+  createdBy     String       @map("created_by")
+  createdAt     DateTime     @default(now()) @map("created_at")
 
-  transaction     Transaction? @relation(fields: [transactionId], references: [id])
-  user            User         @relation(fields: [createdBy], references: [id])
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  user          User         @relation(fields: [createdBy], references: [id])
 
   @@index([customerName])
   @@index([createdAt])
