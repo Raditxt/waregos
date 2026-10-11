@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import { StockMovementType } from '@prisma/client';
 import { CreatePurchaseInput, PurchaseQueryInput } from './purchases.schema';
 import { generateInvoiceNumber } from '@waregos/utils';
 import { PurchaseWithRelations } from '../../shared/prisma-types';
@@ -8,19 +9,21 @@ export class PurchasesService {
 
   async create(input: CreatePurchaseInput, userId: string) {
     const productIds = input.items.map((i) => i.productId);
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true },
-    });
-
-    if (products.length !== productIds.length) {
-      throw new Error('Satu atau lebih produk tidak ditemukan');
+    if (new Set(productIds).size !== productIds.length) {
+      throw new Error('Produk yang sama tidak boleh muncul dua kali dalam satu pembelian');
     }
 
-    const totalAmount = input.items.reduce((sum, item) => {
-      return sum + item.buyPrice * item.quantity;
-    }, 0);
-
     const purchase = await this.prisma.$transaction(async (tx) => {
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds }, isActive: true },
+      });
+      if (products.length !== productIds.length) {
+        throw new Error('Satu atau lebih produk tidak ditemukan');
+      }
+      const productMap = new Map(products.map((p) => [p.id, p] as const));
+
+      const totalAmount = input.items.reduce((sum, i) => sum + i.buyPrice * i.quantity, 0);
+
       const prc = await tx.purchase.create({
         data: {
           invoiceNumber: generateInvoiceNumber('PRC'),
@@ -39,42 +42,53 @@ export class PurchasesService {
           },
         },
         include: {
-          items: {
-            include: { product: { select: { name: true } } },
-          },
+          items: { include: { product: { select: { name: true } } } },
           supplier: { select: { name: true } },
           user: { select: { name: true } },
         },
       });
 
-      // Update stok & harga beli + catat stock movement
-      for (const item of input.items) {
-        const product = products.find((p) => p.id === item.productId)!;
-        const newStock = product.stock + item.quantity;
+      const ordered = [...input.items].sort((a, b) => a.productId.localeCompare(b.productId));
+      const movements: Prisma.StockMovementCreateManyInput[] = [];
+      const histories: Prisma.PriceHistoryCreateManyInput[] = [];
 
-        await tx.product.update({
+      for (const item of ordered) {
+        const before = productMap.get(item.productId)!;
+
+        // Penambahan dihitung di database, bukan dari hasil bacaan lama
+        const updated = await tx.product.update({
           where: { id: item.productId },
-          data: {
-            stock: newStock,
-            buyPrice: item.buyPrice,
-          },
+          data: { stock: { increment: item.quantity }, buyPrice: item.buyPrice },
+          select: { stock: true },
         });
 
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: 'PURCHASE_IN',
-            quantity: item.quantity,
-            stockBefore: product.stock,
-            stockAfter: newStock,
-            purchaseId: prc.id,
-            userId,
-          },
+        movements.push({
+          productId: item.productId,
+          type: StockMovementType.PURCHASE_IN,
+          quantity: item.quantity,
+          stockBefore: updated.stock - item.quantity,
+          stockAfter: updated.stock,
+          purchaseId: prc.id,
+          userId,
         });
+
+        if (before.buyPrice !== null && Number(before.buyPrice) !== item.buyPrice) {
+          histories.push({
+            productId: item.productId,
+            oldPrice: before.buyPrice,
+            newPrice: item.buyPrice,
+            changedBy: userId,
+          });
+        }
+      }
+
+      await tx.stockMovement.createMany({ data: movements });
+      if (histories.length > 0) {
+        await tx.priceHistory.createMany({ data: histories });
       }
 
       return prc;
-    });
+    }, { maxWait: 5000, timeout: 20000 });
 
     return this.formatPurchase(purchase);
   }
