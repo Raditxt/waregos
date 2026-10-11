@@ -302,8 +302,33 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 itemBuilder: (ctx, i) {
                   final h = history[i];
                   final isDebt = h.type == 'DEBT';
-                  final tint = isDebt ? colorScheme.error : semantic.success;
-                  final tintContainer = isDebt ? colorScheme.errorContainer : semantic.successContainer;
+                  final isCancel = h.type == 'CANCEL';
+
+                  // Warna & ikon per tipe entri:
+                  //  DEBT   → merah, panah naik, menambah saldo hutang (+)
+                  //  CANCEL → tertiary, ikon undo, mengurangi saldo hutang (−)
+                  //  lain   → hijau, panah turun, mengurangi saldo hutang (−)
+                  final Color tint = isDebt
+                      ? colorScheme.error
+                      : isCancel
+                          ? colorScheme.tertiary
+                          : semantic.success;
+                  final Color tintContainer = isDebt
+                      ? colorScheme.errorContainer
+                      : isCancel
+                          ? colorScheme.tertiaryContainer
+                          : semantic.successContainer;
+                  final IconData icon = isDebt
+                      ? Icons.arrow_upward_rounded
+                      : isCancel
+                          ? Icons.undo_rounded
+                          : Icons.arrow_downward_rounded;
+                  final String label = isDebt
+                      ? 'Ambil hutang'
+                      : isCancel
+                          ? 'Pembatalan transaksi'
+                          : 'Bayar hutang';
+                  final String sign = isDebt ? '+' : '-';
 
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -315,18 +340,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          isDebt ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                          size: 18,
-                          color: tint,
-                        ),
+                        Icon(icon, size: 18, color: tint),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isDebt ? 'Ambil hutang' : 'Bayar hutang',
+                                label,
                                 style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                               ),
                               if (h.notes != null)
@@ -357,7 +378,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              '${isDebt ? '+' : '-'}${_rupiahFormat.format(h.amount)}',
+                              '$sign${_rupiahFormat.format(h.amount)}',
                               style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: tint),
                             ),
                             Text(
