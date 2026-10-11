@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, getErrorMessage } from '@/lib/api'
 import { formatRupiah, formatNumber, parseNumber } from '@/lib/format'
+import { newUuid } from '@/lib/uuid'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -71,6 +72,11 @@ export default function PosPage() {
   const searchRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
   const customerTimer = useRef<NodeJS.Timeout | null>(null)
+  // Kunci idempotency untuk checkout yang sedang berjalan, beserta "sidik jari"
+  // state saat kunci dibuat. Kunci di-generate sekali per upaya checkout, lalu
+  // di-reset setelah sukses. Kalau isi keranjang/metode/pelanggan berubah
+  // setelah error, fingerprint beda → kunci baru dibuat (bukan retry).
+  const checkoutKeyRef = useRef<{ key: string; fingerprint: string } | null>(null)
 
   const totalAmount = cart.reduce((s, i) => s + i.sellPrice * i.quantity, 0)
   const paidAmountNum = Number(parseNumber(paidAmount))
@@ -194,6 +200,25 @@ export default function PosPage() {
     }
 
     setIsCheckingOut(true)
+
+    // Fingerprint = ciri unik upaya checkout ini. Item di-sort by productId
+    // dulu supaya urutan tidak mempengaruhi hasil. Kalau fingerprint sama
+    // dengan attempt sebelumnya, pakai kunci lama → server mengenali sebagai
+    // replay. Kalau beda (user ubah keranjang/metode/pelanggan setelah error),
+    // buat kunci baru supaya tidak salah dianggap replay.
+    const fingerprint = JSON.stringify([
+      paymentMethod,
+      customerName.trim(),
+      [...cart]
+        .sort((a, b) => a.productId.localeCompare(b.productId))
+        .map((i) => [i.productId, i.quantity, i.sellPrice]),
+    ])
+    let attempt = checkoutKeyRef.current
+    if (!attempt || attempt.fingerprint !== fingerprint) {
+      attempt = { key: newUuid(), fingerprint }
+      checkoutKeyRef.current = attempt
+    }
+
     try {
       const res = await api.post('/transactions', {
         items: cart.map(i => ({
@@ -204,6 +229,7 @@ export default function PosPage() {
         paymentMethod,
         paidAmount: paymentMethod === 'CASH' ? paidAmountNum : 0,
         customerName: paymentMethod === 'DEBT' ? customerName.trim() : undefined,
+        idempotencyKey: attempt.key,
       })
 
       const trx = res.data.data
@@ -223,8 +249,15 @@ export default function PosPage() {
       setCustomerName('')
       setPaymentMethod('CASH')
       setQrisConfirmed(false)
+      // Reset HANYA setelah sukses → transaksi berikutnya dapat kunci baru.
+      checkoutKeyRef.current = null
     } catch (err) {
       toast.error(getErrorMessage(err))
+      // Sengaja TIDAK reset checkoutKeyRef di sini.
+      // Kalau errornya karena network timeout dan server sebenarnya sudah
+      // memproses, user bisa tekan Bayar lagi dengan isi keranjang yang sama →
+      // server mengenali sebagai replay. Kalau isi berubah, fingerprint beda →
+      // kunci baru dibuat di percobaan berikutnya.
     } finally {
       setIsCheckingOut(false)
     }
