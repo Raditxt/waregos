@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
 import {
   Plus, Loader2, CreditCard, ArrowUpCircle,
-  ArrowDownCircle, X, Loader2 as SpinIcon
+  ArrowDownCircle, RotateCcw, X, Loader2 as SpinIcon
 } from 'lucide-react'
 
 interface DebtSummary {
@@ -308,25 +308,28 @@ export default function DebtsPage() {
               ) : (
                 history.map((h) => {
                   const isDebt = h.type === 'DEBT'
+                  const isCancel = h.type === 'CANCEL'
+                  const tone = isDebt
+                    ? { color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)' }
+                    : isCancel
+                      ? { color: 'var(--muted-foreground)', bg: 'var(--muted)', border: 'var(--border)' }
+                      : { color: '#22c55e', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)' }
+                  const label = isDebt ? 'Ambil hutang' : isCancel ? 'Pembatalan transaksi' : 'Bayar hutang'
+                  const Icon = isDebt ? ArrowUpCircle : isCancel ? RotateCcw : ArrowDownCircle
+
                   return (
                     <div
                       key={h.id}
                       className="rounded-xl p-3"
-                      style={{
-                        background: isDebt ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
-                        border: `1px solid ${isDebt ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'}`,
-                      }}
+                      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
                     >
                       <div className="flex items-start gap-3">
                         <div className="shrink-0 mt-0.5">
-                          {isDebt
-                            ? <ArrowUpCircle className="w-4 h-4" style={{ color: '#ef4444' }} />
-                            : <ArrowDownCircle className="w-4 h-4" style={{ color: '#22c55e' }} />
-                          }
+                          <Icon className="w-4 h-4" style={{ color: tone.color }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                            {isDebt ? 'Ambil hutang' : 'Bayar hutang'}
+                            {label}
                           </p>
                           {h.notes && (
                             <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
@@ -347,7 +350,7 @@ export default function DebtsPage() {
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold" style={{ color: isDebt ? '#ef4444' : '#22c55e' }}>
+                          <p className="text-sm font-bold" style={{ color: tone.color }}>
                             {isDebt ? '+' : '-'}{formatRupiah(h.amount)}
                           </p>
                           <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
