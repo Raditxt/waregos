@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import { startOfDay, endOfDay } from '@waregos/utils';
 import { ActivityLogWhereInput } from '../../shared/prisma-types';
 import { logger } from '../../shared/logger';
 
@@ -67,8 +68,8 @@ export class ActivityService {
     if (params.action) where.action = params.action as ActivityAction;
     if (params.dateFrom || params.dateTo) {
       where.createdAt = {};
-      if (params.dateFrom) where.createdAt.gte = new Date(params.dateFrom);
-      if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + 'T23:59:59Z');
+      if (params.dateFrom) where.createdAt.gte = startOfDay(new Date(params.dateFrom));
+      if (params.dateTo) where.createdAt.lte = endOfDay(new Date(params.dateTo));
     }
 
     const [data, total] = await Promise.all([
