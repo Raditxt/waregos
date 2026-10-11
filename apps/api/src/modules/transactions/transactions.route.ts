@@ -42,19 +42,21 @@ export async function transactionsRoutes(app: FastifyInstance) {
 
     try {
       const payload = request.user as JwtPayload;
-      const trx = await service.create(result.data, payload.sub);
+      const { trx, replayed } = await service.create(result.data, payload.sub);
 
-      // Log aktivitas
-      await activityService.log({
-        userId: payload.sub,
-        action: 'CREATE_TRANSACTION',
-        entityType: 'transaction',
-        entityId: trx.id,
-        details: { invoiceNumber: trx.invoiceNumber, totalAmount: trx.totalAmount } as Prisma.InputJsonValue,
-        ipAddress: request.ip,
-      });
+      // Replay bukan transaksi baru, jangan dicatat dua kali di audit log
+      if (!replayed) {
+        await activityService.log({
+          userId: payload.sub,
+          action: 'CREATE_TRANSACTION',
+          entityType: 'transaction',
+          entityId: trx.id,
+          details: { invoiceNumber: trx.invoiceNumber, totalAmount: trx.totalAmount } as Prisma.InputJsonValue,
+          ipAddress: request.ip,
+        });
+      }
 
-      return reply.code(201).send(ok(trx));
+      return reply.code(replayed ? 200 : 201).send(ok(trx));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
       return reply.code(400).send(badRequest(message, 'TRANSACTION_FAILED'));

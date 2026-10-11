@@ -1,145 +1,182 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, StockMovementType } from '@prisma/client';
 import { CreateTransactionInput, TransactionQueryInput } from './transactions.schema';
 import { generateInvoiceNumber } from '@waregos/utils';
 import { TransactionWithRelations } from '../../shared/prisma-types';
+
+const trxInclude = {
+  user: { select: { name: true } },
+  items: { include: { product: { select: { name: true } } } },
+} satisfies Prisma.TransactionInclude;
+
+// Default Prisma hanya 5 detik. Dengan database di cloud, keranjang besar bisa melewatinya.
+const TX_OPTIONS = { maxWait: 5000, timeout: 20000 };
+
+const byProductId = (a: { productId: string }, b: { productId: string }) =>
+  a.productId.localeCompare(b.productId);
 
 export class TransactionsService {
   constructor(private readonly prisma: PrismaClient) {}
 
   // ─── CREATE TRANSACTION ─────────────────────────────────────
   async create(input: CreateTransactionInput, userId: string) {
-    const transaction = await this.prisma.$transaction(async (tx) => {
-      // 1. Ambil semua produk yang dibutuhkan
-      const productIds = input.items.map((i) => i.productId);
-      const products = await tx.product.findMany({
-        where: {
-          id: { in: productIds },
-          isActive: true,
-        },
-      });
+    // 0. Idempotency: kunci yang sama = kembalikan transaksi yang sudah ada
+    if (input.idempotencyKey) {
+      const existing = await this.findByIdempotencyKey(input.idempotencyKey);
+      if (existing) return { trx: existing, replayed: true };
+    }
 
-      if (products.length !== productIds.length) {
-        throw new Error('Satu atau lebih produk tidak ditemukan');
-      }
-
-      // 2. Validasi stok
-      for (const item of input.items) {
-        const product = products.find((p) => p.id === item.productId)!;
-        if (product.stock < item.quantity) {
-          throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`);
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        // 1. Ambil produk
+        const productIds = input.items.map((i) => i.productId);
+        if (new Set(productIds).size !== productIds.length) {
+          throw new Error('Produk yang sama tidak boleh muncul dua kali dalam satu transaksi');
         }
-      }
-
-      // 2.5. Validasi harga beli — produk tanpa buyPrice gak boleh dijual,
-      // karena akan merusak kalkulasi profit & TransactionItem.buyPrice wajib diisi
-      for (const item of input.items) {
-        const product = products.find((p) => p.id === item.productId)!;
-        if (product.buyPrice === null) {
-          throw new Error(
-            `${product.name} belum punya harga beli. Lengkapi dulu di halaman Produk atau catat pembelian sebelum dijual.`
-          );
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds }, isActive: true },
+        });
+        if (products.length !== productIds.length) {
+          throw new Error('Satu atau lebih produk tidak ditemukan');
         }
-      }
+        const productMap = new Map(products.map((p) => [p.id, p] as const));
 
-      // 3. Hitung total
-      const totalAmount = input.items.reduce((sum, item) => {
-        return sum + item.sellPrice * item.quantity;
-      }, 0);
+        // 2. Validasi awal (pesan ramah). Penjaga sebenarnya ada di langkah 5.
+        for (const item of input.items) {
+          const product = productMap.get(item.productId)!;
+          if (product.stock < item.quantity) {
+            throw new Error(`Stok ${product.name} tidak cukup (sisa: ${product.stock})`);
+          }
+          if (product.buyPrice === null) {
+            throw new Error(
+              `${product.name} belum punya harga beli. Lengkapi dulu di halaman Produk atau catat pembelian sebelum dijual.`
+            );
+          }
+        }
 
-      // Validasi pembayaran — skip untuk DEBT
-      if (input.paymentMethod !== 'DEBT' && input.paidAmount < totalAmount) {
-        throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`);
-      }
+        // 3. Hitung total & validasi pembayaran
+        const totalAmount = input.items.reduce((sum, i) => sum + i.sellPrice * i.quantity, 0);
+        const customerName = input.customerName?.trim();
+        const isCash = input.paymentMethod === 'CASH';
 
-      // Validasi DEBT — wajib ada customerName
-      if (input.paymentMethod === 'DEBT' && !input.customerName) {
-        throw new Error('Nama pelanggan wajib diisi untuk transaksi hutang');
-      }
+        if (isCash && input.paidAmount < totalAmount) {
+          throw new Error(`Uang bayar kurang. Total: ${totalAmount}, Bayar: ${input.paidAmount}`);
+        }
+        if (input.paymentMethod === 'DEBT' && !customerName) {
+          throw new Error('Nama pelanggan wajib diisi untuk transaksi hutang');
+        }
 
-      const changeAmount = input.paymentMethod === 'DEBT' ? 0 : input.paidAmount - totalAmount;
+        // Tunai: sesuai input. QRIS: dibayar pas. Hutang: belum dibayar.
+        const paidAmount = isCash ? input.paidAmount : input.paymentMethod === 'QRIS' ? totalAmount : 0;
+        const changeAmount = isCash ? input.paidAmount - totalAmount : 0;
 
-      // 4. Buat transaksi
-      const trx = await tx.transaction.create({
-        data: {
-          invoiceNumber: generateInvoiceNumber('TRX'),
-          userId,
-          paymentMethod: input.paymentMethod,
-          totalAmount,
-          paidAmount: input.paidAmount,
-          changeAmount,
-          notes: input.notes,
-          items: {
-            create: input.items.map((item) => {
-              const product = products.find((p) => p.id === item.productId)!;
-              return {
-                productId: item.productId,
-                quantity: item.quantity,
-                buyPrice: product.buyPrice!, // ← sudah pasti non-null dari validasi 2.5
-                sellPrice: item.sellPrice,
-                subtotal: item.sellPrice * item.quantity,
-              };
-            }),
-          },
-        },
-        include: {
-          items: {
-            include: {
-              product: { select: { name: true } },
+        // 4. Buat transaksi
+        const trx = await tx.transaction.create({
+          data: {
+            invoiceNumber: generateInvoiceNumber('TRX'),
+            idempotencyKey: input.idempotencyKey,
+            userId,
+            paymentMethod: input.paymentMethod,
+            totalAmount,
+            paidAmount,
+            changeAmount,
+            notes: input.notes,
+            items: {
+              create: input.items.map((item) => {
+                const product = productMap.get(item.productId)!;
+                return {
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  buyPrice: product.buyPrice!, // aman: sudah divalidasi non-null di langkah 2
+                  sellPrice: item.sellPrice,
+                  subtotal: item.sellPrice * item.quantity,
+                };
+              }),
             },
           },
-          user: { select: { name: true } },
-        },
-      });
-
-      // 5. Update stok, lastSoldAt & buat stock movement
-      for (const item of input.items) {
-        const product = products.find((p) => p.id === item.productId)!;
-        const newStock = product.stock - item.quantity;
-
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: newStock,
-            lastSoldAt: new Date(),
-          },
+          include: trxInclude,
         });
 
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: 'SALE_OUT',
-            quantity: item.quantity,
-            stockBefore: product.stock,
-            stockAfter: newStock,
-            transactionId: trx.id,
-            userId,
-          },
-        });
-      }
+        // 5. Kurangi stok secara atomik, urut productId
+        const ordered = [...input.items].sort(byProductId);
+        const soldAt = new Date();
+        for (const item of ordered) {
+          const res = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity }, lastSoldAt: soldAt },
+          });
+          if (res.count !== 1) {
+            const name = productMap.get(item.productId)!.name;
+            throw new Error(
+              `Stok ${name} tidak cukup. Mungkin baru saja terjual di perangkat lain, coba muat ulang.`
+            );
+          }
+        }
 
-      // Catat debt transaction kalau bayar hutang
-      if (input.paymentMethod === 'DEBT' && input.customerName) {
-        await tx.debtTransaction.create({
-          data: {
-            customerName: input.customerName,
-            transactionId: trx.id,
-            type: 'DEBT',
-            amount: totalAmount,
-            items: trx.items.map((item) => ({
-              name: item.product?.name ?? item.productId,
+        // Baca stok akhir sekali (baris sudah terkunci oleh transaksi ini)
+        const after = await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, stock: true },
+        });
+        const stockAfterMap = new Map(after.map((p) => [p.id, p.stock] as const));
+
+        await tx.stockMovement.createMany({
+          data: ordered.map((item) => {
+            const stockAfter = stockAfterMap.get(item.productId)!;
+            return {
+              productId: item.productId,
+              type: StockMovementType.SALE_OUT,
               quantity: item.quantity,
-              price: Number(item.sellPrice),
-            })) as Prisma.InputJsonValue,
-            notes: input.notes ?? 'Hutang via POS',
-            createdBy: userId,
-          },
+              stockBefore: stockAfter + item.quantity,
+              stockAfter,
+              transactionId: trx.id,
+              userId,
+            };
+          }),
         });
+
+        // 6. Catat hutang
+        if (input.paymentMethod === 'DEBT' && customerName) {
+          await tx.debtTransaction.create({
+            data: {
+              customerName,
+              transactionId: trx.id,
+              type: 'DEBT',
+              amount: totalAmount,
+              items: trx.items.map((item) => ({
+                name: item.product?.name ?? item.productId,
+                quantity: item.quantity,
+                price: Number(item.sellPrice),
+              })) as Prisma.InputJsonValue,
+              notes: input.notes ?? 'Hutang via POS',
+              createdBy: userId,
+            },
+          });
+        }
+
+        return trx;
+      }, TX_OPTIONS);
+
+      return { trx: this.formatTransaction(created), replayed: false };
+    } catch (err) {
+      // Dua request berkunci sama datang bersamaan: yang kalah kena unique violation
+      if (
+        input.idempotencyKey &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const existing = await this.findByIdempotencyKey(input.idempotencyKey);
+        if (existing) return { trx: existing, replayed: true };
       }
+      throw err;
+    }
+  }
 
-      return trx;
+  private async findByIdempotencyKey(key: string) {
+    const trx = await this.prisma.transaction.findUnique({
+      where: { idempotencyKey: key },
+      include: trxInclude,
     });
-
-    return this.formatTransaction(transaction);
+    return trx ? this.formatTransaction(trx) : null;
   }
 
   // ─── FIND ALL TRANSACTIONS ─────────────────────────────────
@@ -149,19 +186,11 @@ export class TransactionsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.TransactionWhereInput = {};
-
-    if (query.status) {
-      where.status = query.status;
-    }
-
+    if (query.status) where.status = query.status;
     if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
-      if (query.dateFrom) {
-        where.createdAt.gte = new Date(query.dateFrom);
-      }
-      if (query.dateTo) {
-        where.createdAt.lte = new Date(query.dateTo + 'T23:59:59Z');
-      }
+      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
+      if (query.dateTo) where.createdAt.lte = new Date(query.dateTo + 'T23:59:59Z');
     }
 
     const [data, total] = await Promise.all([
@@ -170,24 +199,14 @@ export class TransactionsService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          user: { select: { name: true } },
-          items: {
-            include: { product: { select: { name: true } } },
-          },
-        },
+        include: trxInclude,
       }),
       this.prisma.transaction.count({ where }),
     ]);
 
     return {
       data: data.map((trx) => this.formatTransaction(trx)),
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
@@ -195,59 +214,49 @@ export class TransactionsService {
   async findById(id: string) {
     const trx = await this.prisma.transaction.findUnique({
       where: { id },
-      include: {
-        user: { select: { name: true } },
-        items: {
-          include: { product: { select: { name: true } } },
-        },
-      },
+      include: trxInclude,
     });
-
     if (!trx) return null;
     return this.formatTransaction(trx);
   }
 
   // ─── CANCEL TRANSACTION ─────────────────────────────────────
   async cancel(id: string, userId: string) {
-    const trx = await this.prisma.transaction.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-
-    if (!trx) throw new Error('Transaksi tidak ditemukan');
-    if (trx.status !== 'COMPLETED') throw new Error('Transaksi tidak bisa dibatalkan');
-
     await this.prisma.$transaction(async (tx) => {
-      await tx.transaction.update({
-        where: { id },
+      // Compare-and-set: hanya satu pembatalan yang bisa menang,
+      // jadi dua klik bersamaan tidak mengembalikan stok dua kali.
+      const res = await tx.transaction.updateMany({
+        where: { id, status: 'COMPLETED' },
         data: { status: 'CANCELLED' },
       });
+      if (res.count !== 1) {
+        const exists = await tx.transaction.findUnique({ where: { id }, select: { id: true } });
+        throw new Error(exists ? 'Transaksi tidak bisa dibatalkan' : 'Transaksi tidak ditemukan');
+      }
 
-      // Kembalikan stok (tidak mengubah lastSoldAt)
-      for (const item of trx.items) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!product) continue;
+      const items = (await tx.transactionItem.findMany({ where: { transactionId: id } })).sort(byProductId);
 
-        const newStock = product.stock + item.quantity;
-
-        await tx.product.update({
+      const movements: Prisma.StockMovementCreateManyInput[] = [];
+      for (const item of items) {
+        const updated = await tx.product.update({
           where: { id: item.productId },
-          data: { stock: newStock },
+          data: { stock: { increment: item.quantity } },
+          select: { stock: true },
         });
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: 'RETURN_IN',
-            quantity: item.quantity,
-            stockBefore: product.stock,
-            stockAfter: newStock,
-            transactionId: id,
-            userId,
-          },
+        movements.push({
+          productId: item.productId,
+          type: StockMovementType.RETURN_IN,
+          quantity: item.quantity,
+          stockBefore: updated.stock - item.quantity,
+          stockAfter: updated.stock,
+          transactionId: id,
+          userId,
         });
       }
-    });
+      await tx.stockMovement.createMany({ data: movements });
+
+      // TODO(debt): transaksi DEBT yang dibatalkan belum membalik catatan hutangnya.
+    }, TX_OPTIONS);
   }
 
   // ─── FORMAT RESPONSE ────────────────────────────────────────
