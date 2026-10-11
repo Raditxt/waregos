@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
 import '../../../../core/api/api_client.dart';
 import '../../../../core/constants/api_constants.dart';
 
@@ -87,6 +89,30 @@ class PosState {
 
 class PosNotifier extends StateNotifier<PosState> {
   PosNotifier() : super(const PosState());
+
+  final _uuid = const Uuid();
+
+  // Kunci idempotency untuk checkout yang sedang berjalan.
+  // Di-generate sekali per upaya checkout, di-reset setelah sukses
+  // supaya transaksi berikutnya dapat kunci baru. Kalau request gagal,
+  // kunci tetap sama → retry tidak akan dobel bikin transaksi.
+  String? _checkoutKey;
+
+  // "Sidik jari" isi checkout saat kunci dibuat. Dipakai buat deteksi kalau
+  // user mengubah keranjang/metode/pelanggan setelah request gagal — kalau
+  // berubah, kunci lama sudah tidak relevan dan harus diganti kunci baru.
+  // Tanpa ini, kunci lama akan dipakai ulang untuk transaksi yang berbeda,
+  // dan server bisa mengembalikan transaksi lama (replay) padahal user
+  // berniat bikin transaksi baru.
+  String? _checkoutFingerprint;
+
+  // Ciri unik satu upaya checkout: isi keranjang + metode bayar + pelanggan.
+  // Item di-sort by productId dulu supaya urutan tidak mempengaruhi hasil.
+  String _fingerprint(String paymentMethod, String? customerName) {
+    final items = [...state.cart]..sort((a, b) => a.productId.compareTo(b.productId));
+    final lines = items.map((i) => '${i.productId}x${i.quantity}@${i.sellPrice}').join(',');
+    return '$paymentMethod|${customerName ?? ''}|$lines';
+  }
 
   Future<void> searchProducts(String query) async {
     if (query.isEmpty) {
@@ -188,6 +214,19 @@ class PosNotifier extends StateNotifier<PosState> {
 
     state = state.copyWith(isLoading: true, error: null);
 
+    // Kunci dibuat sekali per upaya checkout. Kalau user klik bayar dua kali
+    // (double-tap) atau retry karena timeout, kunci yang sama dikirim ulang →
+    // server mengenali sebagai replay dan tidak membuat transaksi duplikat.
+    //
+    // Tapi kalau keranjang/metode/pelanggan sudah berubah sejak kunci terakhir
+    // dibuat, berarti ini adalah transaksi yang berbeda — bukan retry. Buat
+    // kunci baru supaya server tidak salah menganggapnya replay.
+    final fp = _fingerprint(paymentMethod, customerName);
+    if (_checkoutKey == null || _checkoutFingerprint != fp) {
+      _checkoutKey = _uuid.v4();
+      _checkoutFingerprint = fp;
+    }
+
     try {
       final res = await ApiClient.post(
         ApiConstants.transactions,
@@ -200,6 +239,7 @@ class PosNotifier extends StateNotifier<PosState> {
           'paymentMethod': paymentMethod,
           'paidAmount': paymentMethod == 'CASH' ? paidAmount : 0,
           if (paymentMethod == 'DEBT') 'customerName': customerName,
+          'idempotencyKey': _checkoutKey,
         },
       );
 
@@ -218,9 +258,29 @@ class PosNotifier extends StateNotifier<PosState> {
         }).toList(),
       };
 
+      // Reset kunci DAN fingerprint HANYA setelah sukses → transaksi
+      // berikutnya dapat kunci baru.
+      _checkoutKey = null;
+      _checkoutFingerprint = null;
       state = PosState(lastReceipt: receipt);
       return true;
-    } catch (e) {
+    } on DioException catch (e) {
+      // Tampilkan pesan dari server (mis. "Stok ... tidak cukup"), bukan teks generik
+      final data = e.response?.data;
+      final serverMessage = (data is Map && data['message'] is String)
+          ? data['message'] as String
+          : null;
+      state = state.copyWith(
+        isLoading: false,
+        error: serverMessage ?? 'Transaksi gagal. Periksa koneksi ke server.',
+      );
+      // Sengaja TIDAK reset _checkoutKey / _checkoutFingerprint di sini.
+      // Kalau errornya karena network timeout dan sebenarnya server sudah
+      // memproses transaksi, user bisa tekan Bayar lagi dengan isi keranjang
+      // yang sama → server akan mengenali sebagai replay. Kalau isi keranjang
+      // berubah, fingerprint beda → kunci baru dibuat di percobaan berikutnya.
+      return false;
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
         error: 'Transaksi gagal. Periksa koneksi ke server.',
