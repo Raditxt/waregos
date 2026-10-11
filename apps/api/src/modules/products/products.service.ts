@@ -39,6 +39,13 @@ export class ProductsService {
       where.categoryId = query.categoryId;
     }
 
+    // Bandingkan kolom stock vs kolom minStock langsung di database.
+    // Sebelumnya difilter di JS setelah pagination → total & meta jadi salah
+    // (halaman bisa kosong walau masih ada produk low-stock di halaman lain).
+    if (query.lowStock === 'true') {
+      where.stock = { lte: this.prisma.product.fields.minStock };
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -53,13 +60,8 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    const filteredData =
-      query.lowStock === 'true'
-        ? data.filter((p) => p.stock <= p.minStock)
-        : data;
-
     return {
-      data: filteredData.map((p) => this.formatProduct(p)),
+      data: data.map((p) => this.formatProduct(p)),
       meta: buildMeta(total, page, limit),
     };
   }
@@ -192,20 +194,21 @@ export class ProductsService {
   // ─── LOW STOCK REPORT ──────────────────────────────────────
   async getLowStock() {
     const products = await this.prisma.product.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        stock: { lte: this.prisma.product.fields.minStock },
+      },
       include: { unit: { select: { symbol: true } } },
       orderBy: { stock: 'asc' },
     });
 
-    return products
-      .filter((p) => p.stock <= p.minStock)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        stock: p.stock,
-        minStock: p.minStock,
-        unit: p.unit.symbol,
-      }));
+    return products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      stock: p.stock,
+      minStock: p.minStock,
+      unit: p.unit.symbol,
+    }));
   }
 
   // ─── EXPIRING SOON REPORT ──────────────────────────────────
