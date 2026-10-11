@@ -1,7 +1,10 @@
 import { PrismaClient, Prisma, StockMovementType } from '@prisma/client';
 import { CreateTransactionInput, TransactionQueryInput } from './transactions.schema';
-import { generateInvoiceNumber } from '@waregos/utils';
+import { generateInvoiceNumber, startOfDay, endOfDay } from '@waregos/utils';
 import { TransactionWithRelations } from '../../shared/prisma-types';
+// ⚠️ Sesuaikan path import di bawah dengan lokasi asli helper-nya.
+// Keduanya dipakai oleh cancel() untuk menangani pembatalan transaksi hutang.
+import { lockCustomer, getCustomerBalance } from '../../shared/debt-ledger';
 
 const trxInclude = {
   user: { select: { name: true } },
@@ -189,8 +192,8 @@ export class TransactionsService {
     if (query.status) where.status = query.status;
     if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
-      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
-      if (query.dateTo) where.createdAt.lte = new Date(query.dateTo + 'T23:59:59Z');
+      if (query.dateFrom) where.createdAt.gte = startOfDay(new Date(query.dateFrom));
+      if (query.dateTo) where.createdAt.lte = endOfDay(new Date(query.dateTo));
     }
 
     const [data, total] = await Promise.all([
@@ -223,8 +226,7 @@ export class TransactionsService {
   // ─── CANCEL TRANSACTION ─────────────────────────────────────
   async cancel(id: string, userId: string) {
     await this.prisma.$transaction(async (tx) => {
-      // Compare-and-set: hanya satu pembatalan yang bisa menang,
-      // jadi dua klik bersamaan tidak mengembalikan stok dua kali.
+      // Compare-and-set: hanya satu pembatalan yang bisa menang
       const res = await tx.transaction.updateMany({
         where: { id, status: 'COMPLETED' },
         data: { status: 'CANCELLED' },
@@ -234,6 +236,36 @@ export class TransactionsService {
         throw new Error(exists ? 'Transaksi tidak bisa dibatalkan' : 'Transaksi tidak ditemukan');
       }
 
+      // Transaksi hutang: tambahkan entri pembalik (catatan lama tidak dihapus)
+      const debt = await tx.debtTransaction.findFirst({
+        where: { transactionId: id, type: 'DEBT' },
+      });
+      if (debt) {
+        await lockCustomer(tx, debt.customerName);
+        const balance = await getCustomerBalance(tx, debt.customerName);
+
+        // Kalau pelanggan sudah membayar sebagian, membatalkan akan membuat saldo negatif
+        // (toko berutang ke pelanggan). Itu butuh keputusan manusia, jadi ditolak.
+        if (Math.round(balance * 100) < Math.round(Number(debt.amount) * 100)) {
+          throw new Error(
+            `Transaksi ini tidak bisa dibatalkan karena ${debt.customerName} sudah membayar sebagian hutangnya. Hubungi admin untuk koreksi manual.`
+          );
+        }
+
+        const trx = await tx.transaction.findUnique({ where: { id }, select: { invoiceNumber: true } });
+        await tx.debtTransaction.create({
+          data: {
+            customerName: debt.customerName,
+            transactionId: id,
+            type: 'CANCEL',
+            amount: debt.amount,
+            notes: `Pembatalan transaksi ${trx?.invoiceNumber ?? id}`,
+            createdBy: userId,
+          },
+        });
+      }
+
+      // Kembalikan stok secara atomik
       const items = (await tx.transactionItem.findMany({ where: { transactionId: id } })).sort(byProductId);
 
       const movements: Prisma.StockMovementCreateManyInput[] = [];
@@ -254,8 +286,6 @@ export class TransactionsService {
         });
       }
       await tx.stockMovement.createMany({ data: movements });
-
-      // TODO(debt): transaksi DEBT yang dibatalkan belum membalik catatan hutangnya.
     }, TX_OPTIONS);
   }
 

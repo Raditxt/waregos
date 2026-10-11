@@ -1,7 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { StockMovementType } from '@prisma/client';
 import { CreatePurchaseInput, PurchaseQueryInput } from './purchases.schema';
-import { generateInvoiceNumber } from '@waregos/utils';
+import { generateInvoiceNumber, startOfDay, endOfDay } from '@waregos/utils';
 import { PurchaseWithRelations } from '../../shared/prisma-types';
 
 export class PurchasesService {
@@ -101,12 +101,8 @@ export class PurchasesService {
     const where: Prisma.PurchaseWhereInput = {};
     if (query.dateFrom || query.dateTo) {
       where.purchasedAt = {};
-      if (query.dateFrom) {
-        where.purchasedAt.gte = new Date(query.dateFrom);
-      }
-      if (query.dateTo) {
-        where.purchasedAt.lte = new Date(query.dateTo + 'T23:59:59Z');
-      }
+      if (query.dateFrom) where.purchasedAt.gte = startOfDay(new Date(query.dateFrom));
+      if (query.dateTo) where.purchasedAt.lte = endOfDay(new Date(query.dateTo));
     }
 
     const [data, total] = await Promise.all([

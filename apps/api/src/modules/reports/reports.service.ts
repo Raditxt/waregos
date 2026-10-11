@@ -4,7 +4,13 @@
 // ============================================
 
 import { PrismaClient, Prisma } from '@prisma/client'
-import { startOfDay, endOfDay, startOfMonth, endOfMonth } from '@waregos/utils'
+import {
+  startOfDay,
+  endOfDay,
+  startOfMonth,
+  endOfMonth,
+  shopDateString,
+} from '@waregos/utils'
 import { logger } from '../../shared/logger'
 import {
   TransactionForReport,
@@ -55,7 +61,7 @@ export class ReportsService {
     })
 
     return {
-      date: date.toISOString().slice(0, 10),
+      date: shopDateString(date),
       totalTransactions: transactions.length,
       cancelledTransactions: cancelled,
       totalRevenue,
@@ -72,7 +78,7 @@ export class ReportsService {
   }
 
   async getMonthly(year: number, month: number) {
-    const target = new Date(year, month - 1, 1)
+    const target = new Date(Date.UTC(year, month - 1, 15))
     const from = startOfMonth(target)
     const to = endOfMonth(target)
 
@@ -102,8 +108,8 @@ export class ReportsService {
 
     if (dateFrom || dateTo) {
       transactionWhere.createdAt = {
-        ...(dateFrom && { gte: new Date(dateFrom) }),
-        ...(dateTo && { lte: new Date(dateTo + 'T23:59:59Z') }),
+        ...(dateFrom && { gte: startOfDay(new Date(dateFrom)) }),
+        ...(dateTo && { lte: endOfDay(new Date(dateTo)) }),
       }
     }
 
@@ -154,7 +160,7 @@ export class ReportsService {
   private calculateSummary(transactions: TransactionForReport[], cancelled: number, date: Date) {
     const { totalRevenue, totalProfit, totalItems } = this.calculateTotals(transactions)
     return {
-      date: date.toISOString().slice(0, 10),
+      date: shopDateString(date),
       totalTransactions: transactions.length,
       cancelledTransactions: cancelled,
       totalRevenue,
@@ -209,7 +215,7 @@ export class ReportsService {
     }> = {}
 
     for (const t of transactions) {
-      const d = t.createdAt.toISOString().slice(0, 10)
+      const d = shopDateString(t.createdAt)
       if (!byDate[d]) {
         byDate[d] = {
           date: d,
