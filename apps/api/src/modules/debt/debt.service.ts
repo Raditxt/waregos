@@ -1,52 +1,54 @@
 import { PrismaClient, Prisma } from '@prisma/client'
+import {
+  customerKey,
+  normalizeCustomerName,
+  signedAmount,
+  lockCustomer,
+  getCustomerBalance,
+} from '../../shared/debt-ledger'
 
 export class DebtService {
   constructor(private prisma: PrismaClient) {}
 
-  // Semua hutang — digroup by nama pelanggan
+  // Semua hutang, dikelompokkan per pelanggan (huruf besar/kecil dan spasi ekstra diabaikan)
   async getSummary() {
     const debts = await this.prisma.debtTransaction.findMany({
       orderBy: { createdAt: 'desc' },
     })
 
-    // Group by customerName
-    const grouped: Record<string, {
+    const grouped = new Map<string, {
       customerName: string
       totalDebt: number
       lastActivity: string
       transactionCount: number
-    }> = {}
+    }>()
 
     for (const d of debts) {
-      if (!grouped[d.customerName]) {
-        grouped[d.customerName] = {
-          customerName: d.customerName,
+      const key = customerKey(d.customerName)
+      let g = grouped.get(key)
+      if (!g) {
+        // Data terurut terbaru dulu, jadi ejaan pertama yang terlihat adalah ejaan terbaru
+        g = {
+          customerName: normalizeCustomerName(d.customerName),
           totalDebt: 0,
           lastActivity: d.createdAt.toISOString(),
           transactionCount: 0,
         }
+        grouped.set(key, g)
       }
-      if (d.type === 'DEBT') {
-        grouped[d.customerName].totalDebt += Number(d.amount)
-      } else {
-        grouped[d.customerName].totalDebt -= Number(d.amount)
-      }
-      grouped[d.customerName].transactionCount += 1
+      g.totalDebt += signedAmount(d.type, d.amount)
+      g.transactionCount += 1
     }
 
-    return Object.values(grouped)
-      .filter(g => g.totalDebt > 0)
+    return [...grouped.values()]
+      .filter((g) => g.totalDebt > 0)
       .sort((a, b) => b.totalDebt - a.totalDebt)
   }
 
   // Riwayat hutang per pelanggan
   async getHistory(customerName: string) {
-    // Definisikan where dengan tipe Prisma.DebtTransactionWhereInput
     const where: Prisma.DebtTransactionWhereInput = {
-      customerName: {
-        equals: customerName,
-        mode: 'insensitive'
-      }
+      customerName: { equals: normalizeCustomerName(customerName), mode: 'insensitive' },
     }
 
     const history = await this.prisma.debtTransaction.findMany({
@@ -54,15 +56,13 @@ export class DebtService {
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { name: true } },
-        transaction: { select: { invoiceNumber: true } }
-      }
+        transaction: { select: { invoiceNumber: true } },
+      },
     })
 
-    // Hitung running balance
     let balance = 0
-    const withBalance = [...history].reverse().map(h => {
-      if (h.type === 'DEBT') balance += Number(h.amount)
-      else balance -= Number(h.amount)
+    const withBalance = [...history].reverse().map((h) => {
+      balance += signedAmount(h.type, h.amount)
       return {
         id: h.id,
         type: h.type,
@@ -81,7 +81,7 @@ export class DebtService {
     return { customerName, totalDebt, history: withBalance }
   }
 
-  // Catat hutang baru
+  // Catat hutang baru (manual, tanpa transaksi penjualan)
   async addDebt(input: {
     customerName: string
     transactionId?: string
@@ -92,56 +92,68 @@ export class DebtService {
   }) {
     await this.prisma.debtTransaction.create({
       data: {
-        customerName: input.customerName,
+        customerName: normalizeCustomerName(input.customerName),
         transactionId: input.transactionId,
         type: 'DEBT',
         amount: input.amount,
-        items: input.items as Prisma.InputJsonValue, // lebih baik gunakan Prisma.InputJsonValue daripada any
+        items: input.items as Prisma.InputJsonValue,
         notes: input.notes,
         createdBy: input.createdBy,
-      }
+      },
     })
   }
 
-  // Catat pembayaran hutang
+  // Catat pembayaran hutang. Cek saldo dan simpan terjadi dalam satu transaksi
+  // yang diserialkan per pelanggan, jadi tidak bisa bayar melebihi hutang.
   async addPayment(input: {
     customerName: string
     amount: number
     notes?: string
     createdBy: string
   }) {
-    // Cek total hutang dulu
-    const history = await this.getHistory(input.customerName)
-    if (input.amount > history.totalDebt) {
-      throw new Error(
-        `Jumlah bayar (Rp ${input.amount.toLocaleString('id-ID')}) melebihi total hutang (Rp ${history.totalDebt.toLocaleString('id-ID')})`
-      )
-    }
+    const customerName = normalizeCustomerName(input.customerName)
 
-    await this.prisma.debtTransaction.create({
-      data: {
-        customerName: input.customerName,
-        type: 'PAYMENT',
-        amount: input.amount,
-        notes: input.notes ?? 'Bayar hutang',
-        createdBy: input.createdBy,
+    await this.prisma.$transaction(async (tx) => {
+      await lockCustomer(tx, customerName)
+      const balance = await getCustomerBalance(tx, customerName)
+
+      if (input.amount > balance) {
+        throw new Error(
+          `Jumlah bayar (Rp ${input.amount.toLocaleString('id-ID')}) melebihi total hutang (Rp ${balance.toLocaleString('id-ID')})`
+        )
       }
+
+      await tx.debtTransaction.create({
+        data: {
+          customerName,
+          type: 'PAYMENT',
+          amount: input.amount,
+          notes: input.notes ?? 'Bayar hutang',
+          createdBy: input.createdBy,
+        },
+      })
     })
   }
 
-  // Search nama pelanggan yang pernah hutang
+  // Search nama pelanggan yang pernah hutang (tanpa duplikat beda huruf besar/kecil)
   async searchCustomers(query: string) {
-    // Definisikan where dengan tipe Prisma.DebtTransactionWhereInput
-    const where: Prisma.DebtTransactionWhereInput = {
-      customerName: { contains: query, mode: 'insensitive' }
-    }
-
-    const results = await this.prisma.debtTransaction.findMany({
-      where,
+    const rows = await this.prisma.debtTransaction.findMany({
+      where: { customerName: { contains: normalizeCustomerName(query), mode: 'insensitive' } },
       select: { customerName: true },
       distinct: ['customerName'],
-      take: 10,
+      orderBy: { createdAt: 'desc' },
+      take: 30,
     })
-    return results.map(r => r.customerName)
+
+    const seen = new Set<string>()
+    const names: string[] = []
+    for (const r of rows) {
+      const key = customerKey(r.customerName)
+      if (seen.has(key)) continue
+      seen.add(key)
+      names.push(normalizeCustomerName(r.customerName))
+      if (names.length === 10) break
+    }
+    return names
   }
 }
