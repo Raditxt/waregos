@@ -67,8 +67,9 @@ class PosState {
   });
 
   double get totalAmount => cart.fold(
-    0, (sum, item) => sum + item.sellPrice * item.quantity,
-  );
+        0,
+        (sum, item) => sum + item.sellPrice * item.quantity,
+      );
 
   PosState copyWith({
     List<CartItem>? cart,
@@ -109,8 +110,10 @@ class PosNotifier extends StateNotifier<PosState> {
   // Ciri unik satu upaya checkout: isi keranjang + metode bayar + pelanggan.
   // Item di-sort by productId dulu supaya urutan tidak mempengaruhi hasil.
   String _fingerprint(String paymentMethod, String? customerName) {
-    final items = [...state.cart]..sort((a, b) => a.productId.compareTo(b.productId));
-    final lines = items.map((i) => '${i.productId}x${i.quantity}@${i.sellPrice}').join(',');
+    final items = [...state.cart]
+      ..sort((a, b) => a.productId.compareTo(b.productId));
+    final lines =
+        items.map((i) => '${i.productId}x${i.quantity}@${i.sellPrice}').join(',');
     return '$paymentMethod|${customerName ?? ''}|$lines';
   }
 
@@ -126,7 +129,9 @@ class PosNotifier extends StateNotifier<PosState> {
       );
       final data = res.data['data'] as List;
       state = state.copyWith(
-        searchResults: data.map((e) => ProductResult.fromJson(e as Map<String, dynamic>)).toList(),
+        searchResults: data
+            .map((e) => ProductResult.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
     } catch (_) {
       state = state.copyWith(searchResults: []);
@@ -207,7 +212,8 @@ class PosNotifier extends StateNotifier<PosState> {
       return false;
     }
 
-    if (paymentMethod == 'DEBT' && (customerName == null || customerName.isEmpty)) {
+    if (paymentMethod == 'DEBT' &&
+        (customerName == null || customerName.isEmpty)) {
       state = state.copyWith(error: 'Nama pelanggan wajib diisi');
       return false;
     }
@@ -231,17 +237,29 @@ class PosNotifier extends StateNotifier<PosState> {
       final res = await ApiClient.post(
         ApiConstants.transactions,
         data: {
-          'items': state.cart.map((i) => {
-            'productId': i.productId,
-            'quantity': i.quantity,
-            'sellPrice': i.sellPrice,
-          }).toList(),
+          'items': state.cart
+              .map((i) => {
+                    'productId': i.productId,
+                    'quantity': i.quantity,
+                    'sellPrice': i.sellPrice,
+                  })
+              .toList(),
           'paymentMethod': paymentMethod,
           'paidAmount': paymentMethod == 'CASH' ? paidAmount : 0,
           if (paymentMethod == 'DEBT') 'customerName': customerName,
           'idempotencyKey': _checkoutKey,
         },
       );
+
+      // Dio tidak melempar error untuk 4xx, jadi dicek di sini (mis. "Stok ... tidak cukup")
+      if (!ApiClient.isSuccess(res)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: ApiClient.serverMessage(res) ?? 'Transaksi gagal. Coba lagi.',
+        );
+        // Kunci idempotency dipertahankan: transaksi ditolak server, tidak ada yang tersimpan
+        return false;
+      }
 
       final trx = res.data['data'] as Map<String, dynamic>;
       final receipt = {
@@ -251,11 +269,13 @@ class PosNotifier extends StateNotifier<PosState> {
         'changeAmount': trx['changeAmount'],
         'paymentMethod': trx['paymentMethod'],
         'customerName': customerName,
-        'items': state.cart.map((i) => {
-          'name': i.name,
-          'quantity': i.quantity,
-          'subtotal': i.sellPrice * i.quantity,
-        }).toList(),
+        'items': state.cart
+            .map((i) => {
+                  'name': i.name,
+                  'quantity': i.quantity,
+                  'subtotal': i.sellPrice * i.quantity,
+                })
+            .toList(),
       };
 
       // Reset kunci DAN fingerprint HANYA setelah sukses → transaksi
@@ -265,7 +285,9 @@ class PosNotifier extends StateNotifier<PosState> {
       state = PosState(lastReceipt: receipt);
       return true;
     } on DioException catch (e) {
-      // Tampilkan pesan dari server (mis. "Stok ... tidak cukup"), bukan teks generik
+      // Error yang benar-benar dilempar Dio: network error, timeout,
+      // connection error, atau 5xx (tergantung validateStatus di ApiClient).
+      // Kalau server tetap mengirim body pesan, utamakan pesan itu.
       final data = e.response?.data;
       final serverMessage = (data is Map && data['message'] is String)
           ? data['message'] as String

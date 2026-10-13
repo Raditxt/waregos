@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/auth_model.dart';
@@ -6,7 +7,6 @@ import '../../../../core/api/api_client.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/storage/secure_storage.dart';
 
-// Auth state
 class AuthState {
   final UserModel? user;
   final String? token;
@@ -38,7 +38,17 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState());
+  AuthNotifier() : super(const AuthState()) {
+    // Server menjawab 401 → sesi tidak berlaku lagi → kembali ke layar login
+    ApiClient.onUnauthorized = _handleSessionExpired;
+  }
+
+  Future<void> _handleSessionExpired() async {
+    if (!state.isAuthenticated) return; // sudah logout, abaikan 401 susulan
+    await SecureStorage.clearAll();
+    ApiClient.resetInstance();
+    state = const AuthState(error: 'Sesi berakhir. Silakan login kembali.');
+  }
 
   // Hydrate dari secure storage saat app start
   Future<void> hydrate() async {
@@ -48,7 +58,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (token != null && userJson != null) {
       try {
         final user = UserModel.fromJson(
-          jsonDecode(userJson) as Map<String, dynamic>
+          jsonDecode(userJson) as Map<String, dynamic>,
         );
         state = state.copyWith(user: user, token: token);
       } catch (_) {
@@ -60,14 +70,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> login(String username, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // Gunakan ApiConstants.baseUrl langsung (tidak perlu getBaseUrl)
       debugPrint('[Auth] Attempting login to: ${ApiConstants.baseUrl}');
-      
+
       final res = await ApiClient.post(
         ApiConstants.login,
         data: {'username': username, 'password': password},
       );
       debugPrint('[Auth] Login response: ${res.statusCode}');
+
+      // 400 input tidak valid, 401 kredensial salah, 429 terlalu banyak percobaan
+      if (!ApiClient.isSuccess(res)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: ApiClient.serverMessage(res) ?? 'Login gagal. Coba lagi.',
+        );
+        return;
+      }
 
       final data = res.data['data'] as Map<String, dynamic>;
       final auth = AuthResponse.fromJson(data);
@@ -80,18 +98,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
         token: auth.accessToken,
         isLoading: false,
       );
-    } catch (e) {
-      String message = 'Login gagal';
-      if (e is Exception) {
-        message = 'Username atau password salah';
-      }
-      state = state.copyWith(isLoading: false, error: message);
+    } on DioException catch (e) {
+      state = state.copyWith(isLoading: false, error: _networkMessage(e));
+    } catch (_) {
+      state = state.copyWith(isLoading: false, error: 'Login gagal. Coba lagi.');
+    }
+  }
+
+  String _networkMessage(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return 'Tidak bisa terhubung ke server. Periksa WiFi dan pastikan server menyala.';
+      default:
+        return 'Server sedang bermasalah. Coba lagi dalam beberapa saat.';
     }
   }
 
   Future<void> logout() async {
     await SecureStorage.clearAll();
-    ApiClient.resetInstance(); // Reset instance Dio untuk membersihkan state client
+    ApiClient.resetInstance();
     state = const AuthState();
   }
 }
