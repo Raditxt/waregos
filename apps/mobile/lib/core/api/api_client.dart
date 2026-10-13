@@ -5,34 +5,34 @@ import '../storage/secure_storage.dart';
 class ApiClient {
   static Dio? _instance;
 
-  // Getter instance Dio (syncronous, tidak memerlukan await)
+  /// Diisi oleh AuthNotifier. Dipanggil saat server menjawab 401 untuk request
+  /// selain login (token dicabut, akun dinonaktifkan, password diganti, atau kedaluwarsa).
+  static void Function()? onUnauthorized;
+
   static Dio get instance {
     _instance ??= _createDio();
     return _instance!;
   }
 
-  // Reset instance Dio (misal saat logout atau baseUrl berubah)
   static void resetInstance() {
-    // Jika ingin menutup koneksi yang masih terbuka, gunakan:
-    // _instance?.close(force: true);
     _instance = null;
   }
 
-  // Membuat Dio dengan konfigurasi dasar
   static Dio _createDio() {
     final dio = Dio(BaseOptions(
-      baseUrl: ApiConstants.baseUrl, // Gunakan konstanta langsung
+      baseUrl: ApiConstants.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 15),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
+      // Status < 500 TIDAK dilempar sebagai error. Pemanggil wajib memeriksa
+      // hasilnya lewat isSuccess() / serverMessage().
       validateStatus: (status) => status != null && status < 500,
       followRedirects: true,
     ));
 
-    // Interceptor untuk menambahkan token dan menangani error 401
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -42,12 +42,13 @@ class ApiClient {
           }
           return handler.next(options);
         },
-        onError: (error, handler) async {
-          if (error.response?.statusCode == 401) {
-            await SecureStorage.clearAll();
-            resetInstance();
+        // 401 tiba sebagai respons biasa, jadi harus ditangani di sini, bukan di onError
+        onResponse: (response, handler) {
+          final isLogin = response.requestOptions.path.endsWith(ApiConstants.login);
+          if (response.statusCode == 401 && !isLogin) {
+            onUnauthorized?.call();
           }
-          return handler.next(error);
+          return handler.next(response);
         },
       ),
     );
@@ -55,9 +56,20 @@ class ApiClient {
     return dio;
   }
 
-  // Helper methods (semua method mengembalikan Future<Response>)
-  static Future<Response> get(String path,
-      {Map<String, dynamic>? params}) async {
+  /// true untuk status 2xx
+  static bool isSuccess(Response res) {
+    final code = res.statusCode ?? 0;
+    return code >= 200 && code < 300;
+  }
+
+  /// Pesan dari server (mis. "Stok ... tidak cukup"), atau null kalau tidak ada
+  static String? serverMessage(Response res) {
+    final data = res.data;
+    if (data is Map && data['message'] is String) return data['message'] as String;
+    return null;
+  }
+
+  static Future<Response> get(String path, {Map<String, dynamic>? params}) async {
     return instance.get(path, queryParameters: params);
   }
 
