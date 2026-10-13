@@ -5,6 +5,7 @@ export interface JwtPayload {
   sub: string
   username: string
   role: 'ADMIN' | 'CASHIER'
+  tv: number                      // <-- NEW: token version (untuk invalidasi JWT)
   iat?: number
   exp?: number
 }

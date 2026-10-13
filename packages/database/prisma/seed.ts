@@ -2,62 +2,101 @@ import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
+const isProd = process.env.NODE_ENV === 'production'
 
-async function main() {
-  console.log('🌱 Seeding database...')
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) throw new Error(`Environment variable "${name}" wajib diisi saat seed di produksi`)
+  return value
+}
 
-  // Hash passwords
-  const adminHash = await bcrypt.hash('admin123', 10)
-  const cashierHash = await bcrypt.hash('kasir123', 10)
+async function seedUsers(): Promise<string[]> {
+  if (isProd) {
+    // Produksi: tidak ada akun bawaan. Admin berasal dari environment, kasir dibuat lewat aplikasi.
+    const username = requireEnv('SEED_ADMIN_USERNAME').trim().toLowerCase()
+    const password = requireEnv('SEED_ADMIN_PASSWORD')
+    if (password.length < 12) {
+      throw new Error('SEED_ADMIN_PASSWORD minimal 12 karakter di produksi')
+    }
 
-  // Seed users
+    await prisma.user.upsert({
+      where: { username },
+      update: {},
+      create: {
+        name: 'Administrator',
+        username,
+        passwordHash: await bcrypt.hash(password, 12),
+        role: 'ADMIN',
+      },
+    })
+    return [username]
+  }
+
+  // Dev lokal: akun contoh
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
     create: {
       name: 'Administrator',
       username: 'admin',
-      passwordHash: adminHash,
-      role: 'ADMIN'
-    }
+      passwordHash: await bcrypt.hash('admin123', 10),
+      role: 'ADMIN',
+    },
   })
-
   const cashier = await prisma.user.upsert({
     where: { username: 'ibu' },
     update: {},
     create: {
       name: 'Ibu',
       username: 'ibu',
-      passwordHash: cashierHash,
-      role: 'CASHIER'
-    }
+      passwordHash: await bcrypt.hash('kasir123', 10),
+      role: 'CASHIER',
+    },
   })
+  return [admin.username, cashier.username]
+}
 
-  // Seed categories
-  const categories = await Promise.all([
-    prisma.category.upsert({ where: { name: 'Minuman' }, update: {}, create: { name: 'Minuman' } }),
-    prisma.category.upsert({ where: { name: 'Makanan' }, update: {}, create: { name: 'Makanan' } }),
-    prisma.category.upsert({ where: { name: 'Snack' }, update: {}, create: { name: 'Snack' } }),
-    prisma.category.upsert({ where: { name: 'Rokok' }, update: {}, create: { name: 'Rokok' } }),
-    prisma.category.upsert({ where: { name: 'Sembako' }, update: {}, create: { name: 'Sembako' } }),
-    prisma.category.upsert({ where: { name: 'Kebersihan' }, update: {}, create: { name: 'Kebersihan' } }),
-    prisma.category.upsert({ where: { name: 'Lainnya' }, update: {}, create: { name: 'Lainnya' } }),
-  ])
+async function seedCategories(): Promise<number> {
+  // Produksi: kategori dikelola lewat aplikasi, jangan muncul lagi setelah dihapus
+  if (isProd) return 0
 
-  // Seed units
-  const units = await Promise.all([
-    prisma.unit.upsert({ where: { symbol: 'pcs' }, update: {}, create: { name: 'Pieces', symbol: 'pcs' } }),
-    prisma.unit.upsert({ where: { symbol: 'btl' }, update: {}, create: { name: 'Botol', symbol: 'btl' } }),
-    prisma.unit.upsert({ where: { symbol: 'bks' }, update: {}, create: { name: 'Bungkus', symbol: 'bks' } }),
-    prisma.unit.upsert({ where: { symbol: 'dus' }, update: {}, create: { name: 'Dus', symbol: 'dus' } }),
-    prisma.unit.upsert({ where: { symbol: 'kg' }, update: {}, create: { name: 'Kilogram', symbol: 'kg' } }),
-    prisma.unit.upsert({ where: { symbol: 'gr' }, update: {}, create: { name: 'Gram', symbol: 'gr' } }),
-    prisma.unit.upsert({ where: { symbol: 'ltr' }, update: {}, create: { name: 'Liter', symbol: 'ltr' } }),
-  ])
+  const names = ['Minuman', 'Makanan', 'Snack', 'Rokok', 'Sembako', 'Kebersihan', 'Lainnya']
+  await Promise.all(
+    names.map((name) =>
+      prisma.category.upsert({ where: { name }, update: {}, create: { name } })
+    )
+  )
+  return names.length
+}
 
-  console.log('✅ Users seeded:', admin.username, cashier.username)
-  console.log('✅ Categories seeded:', categories.length)
-  console.log('✅ Units seeded:', units.length)
+async function seedUnits(): Promise<number> {
+  const units = [
+    { name: 'Pieces', symbol: 'pcs' },
+    { name: 'Botol', symbol: 'btl' },
+    { name: 'Bungkus', symbol: 'bks' },
+    { name: 'Dus', symbol: 'dus' },
+    { name: 'Kilogram', symbol: 'kg' },
+    { name: 'Gram', symbol: 'gr' },
+    { name: 'Liter', symbol: 'ltr' },
+  ]
+  await Promise.all(
+    units.map((u) =>
+      prisma.unit.upsert({ where: { symbol: u.symbol }, update: {}, create: u })
+    )
+  )
+  return units.length
+}
+
+async function main() {
+  console.log(`🌱 Seeding database (${isProd ? 'PRODUKSI' : 'dev'})...`)
+
+  const users = await seedUsers()
+  const categories = await seedCategories()
+  const units = await seedUnits()
+
+  console.log('✅ Users seeded:', users.join(', '))
+  console.log('✅ Categories seeded:', categories)
+  console.log('✅ Units seeded:', units)
   console.log('🎉 Seeding complete!')
 }
 

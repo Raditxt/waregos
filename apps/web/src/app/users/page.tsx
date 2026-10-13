@@ -211,6 +211,10 @@ export default function UsersPage() {
       toast.error('Semua field wajib diisi')
       return
     }
+    if (form.password.length < 8) {
+      toast.error('Password minimal 8 karakter')
+      return
+    }
     setSaving(true)
     try {
       await api.post('/users', form)
@@ -240,8 +244,8 @@ export default function UsersPage() {
   }
 
   const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      toast.error('Password baru minimal 6 karakter')
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('Password baru minimal 8 karakter')
       return
     }
     setSaving(true)
@@ -433,7 +437,7 @@ export default function UsersPage() {
             type="password"
             className="w-full rounded-lg px-3 py-2 text-sm outline-none focus-warm"
             style={inputStyle}
-            placeholder="Minimal 6 karakter"
+            placeholder="Minimal 8 karakter"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
@@ -477,7 +481,7 @@ export default function UsersPage() {
             type="password"
             className="w-full rounded-lg px-3 py-2 text-sm outline-none focus-warm"
             style={inputStyle}
-            placeholder="Minimal 6 karakter"
+            placeholder="Minimal 8 karakter"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleResetPassword()}

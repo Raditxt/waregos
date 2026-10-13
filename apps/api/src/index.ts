@@ -1,15 +1,22 @@
 import 'dotenv/config';
 
+const isProd = process.env.NODE_ENV === 'production';
+
 // Environment validation
-const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL'];
+const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL', ...(isProd ? ['CORS_ORIGINS'] : [])];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`❌ FATAL: Environment variable "${envVar}" is required but not set.`);
     process.exit(1);
   }
 }
+if (isProd && (process.env.JWT_SECRET as string).length < 32) {
+  console.error('❌ FATAL: JWT_SECRET minimal 32 karakter di produksi.');
+  process.exit(1);
+}
 
 import Fastify from 'fastify';
+import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import prismaPlugin from './plugins/prisma';
 import jwtPlugin from './plugins/jwt';
@@ -29,8 +36,13 @@ import { reportsRoutes } from './modules/reports/reports.route';
 import { debtRoutes } from './modules/debt/debt.route';
 import { activityRoutes } from './modules/audit/audit.route';
 
+// Jumlah proxy tepercaya di depan API (Railway: kemungkinan 1; verifikasi saat deploy).
+// 0 = tidak ada proxy (dev lokal): header X-Forwarded-For diabaikan, tidak bisa dipalsukan.
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
+
 const app = Fastify({
   logger: false, // Pakai custom logger
+  trustProxy: trustProxyHops > 0 ? trustProxyHops : false,
 });
 
 const start = async () => {
@@ -40,6 +52,7 @@ const start = async () => {
 
     // Plugins
     await app.register(prismaPlugin);
+    await app.register(helmet, { crossOriginResourcePolicy: { policy: 'cross-origin' } });
     await app.register(jwtPlugin);
     await app.register(corsPlugin);
     await app.register(rateLimit, {
@@ -81,28 +94,35 @@ const start = async () => {
       }
     });
 
-    const port = Number(process.env.API_PORT ?? 3001);
+    const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
     const host = process.env.API_HOST ?? '0.0.0.0';
 
     await app.listen({ port, host });
     logger.info(`🚀 Waregos API running at http://${host}:${port}`, 'Bootstrap');
 
-    // mDNS broadcasting
-    const bonjour = new Bonjour();
-    bonjour.publish({
-      name: 'Waregos API',
-      type: 'http',
-      port: port,
-      txt: { version: '1.0.0' },
-    });
-    logger.info('📡 mDNS broadcasting as waregos-api.local', 'Bootstrap');
+    // mDNS hanya berguna di jaringan lokal (dev), tidak di cloud
+    let bonjour: Bonjour | null = null;
+    if (!isProd) {
+      bonjour = new Bonjour();
+      bonjour.publish({
+        name: 'Waregos API',
+        type: 'http',
+        port: port,
+        txt: { version: '1.0.0' },
+      });
+      logger.info('📡 mDNS broadcasting as waregos-api.local', 'Bootstrap');
+    }
 
-    // Cleanup saat shutdown
-    process.on('SIGINT', () => {
-      bonjour.unpublishAll();
-      bonjour.destroy();
+    // Railway menghentikan proses dengan SIGTERM; Ctrl+C di lokal adalah SIGINT
+    const shutdown = async (signal: string) => {
+      logger.info(`${signal} diterima, menutup server...`, 'Bootstrap');
+      bonjour?.unpublishAll();
+      bonjour?.destroy();
+      await app.close();
       process.exit(0);
-    });
+    };
+    process.on('SIGINT', () => { void shutdown('SIGINT'); });
+    process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
   } catch (err) {
     logger.error('Failed to start server', 'Bootstrap', err);
     process.exit(1);

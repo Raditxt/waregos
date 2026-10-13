@@ -26,6 +26,7 @@ interface ActionOption { value: string; label: string }
     .badge-warning / .badge-info / .badge-neutral) */
 const ACTION_BADGE_CLASS: Record<string, string> = {
   LOGIN: 'badge-info',
+  LOGIN_FAILED: 'badge-error',
   LOGOUT: 'badge-neutral',
   CHANGE_PASSWORD: 'badge-warning',
   RESET_PASSWORD: 'badge-accent',
