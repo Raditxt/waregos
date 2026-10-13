@@ -1,10 +1,14 @@
 import { FastifyInstance } from 'fastify';
-import { AuthService } from './auth.service';
-import { ActivityService } from '../audit/audit.service';
-import { loginSchema, changePasswordSchema, ChangePasswordInput } from './auth.schema';
-import { JwtPayload } from '@waregos/types';
 import { Prisma } from '@prisma/client';
+import { JwtPayload } from '@waregos/types';
+import { AuthService, LoginError } from './auth.service';
+import { ActivityService } from '../audit/audit.service';
+import { loginSchema, changePasswordSchema } from './auth.schema';
 import { ok, validationError, badRequest, notFound } from '../../shared/response';
+
+// Admin: sesi pendek (hak akses besar). Kasir: sesi panjang (tablet di meja kasir).
+// Aman karena sesi bisa dicabut seketika lewat tokenVersion.
+const tokenLifetime = (role: string) => (role === 'ADMIN' ? '12h' : '7d');
 
 export async function authRoutes(app: FastifyInstance) {
   const authService = new AuthService(app.prisma);
@@ -30,15 +34,15 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     try {
-      const user = await authService.login(result.data);
+      const { user, tokenVersion } = await authService.login(result.data);
       const payload: JwtPayload = {
         sub: user.id,
         username: user.username,
         role: user.role,
+        tv: tokenVersion,
       };
-      const accessToken = app.jwt.sign(payload);
+      const accessToken = app.jwt.sign(payload, { expiresIn: tokenLifetime(user.role) });
 
-      // Log aktivitas login
       await activityService.log({
         userId: user.id,
         action: 'LOGIN',
@@ -48,8 +52,18 @@ export async function authRoutes(app: FastifyInstance) {
 
       return reply.code(200).send(ok({ accessToken, user }));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
-      return reply.code(401).send(badRequest(message, 'INVALID_CREDENTIALS'));
+      // Error tak terduga (mis. database mati) jangan disamarkan jadi "password salah"
+      if (!(err instanceof LoginError)) throw err;
+
+      if (err.userId) {
+        await activityService.log({
+          userId: err.userId,
+          action: 'LOGIN_FAILED',
+          details: { reason: err.reason } as Prisma.InputJsonValue,
+          ipAddress: request.ip,
+        });
+      }
+      return reply.code(401).send(badRequest(err.message, 'INVALID_CREDENTIALS'));
     }
   });
 
@@ -78,39 +92,27 @@ export async function authRoutes(app: FastifyInstance) {
 
     try {
       const payload = request.user as JwtPayload;
-      await authService.changePassword(payload.sub, result.data);
+      const updated = await authService.changePassword(payload.sub, result.data);
 
-      // Log aktivitas change password
       await activityService.log({
         userId: payload.sub,
         action: 'CHANGE_PASSWORD',
         ipAddress: request.ip,
       });
 
-      return reply.send(ok(null, 'Password berhasil diubah'));
+      // Sesi lain sudah tidak berlaku; sesi ini mendapat token baru
+      const newPayload: JwtPayload = {
+        sub: updated.id,
+        username: updated.username,
+        role: updated.role,
+        tv: updated.tokenVersion,
+      };
+      const accessToken = app.jwt.sign(newPayload, { expiresIn: tokenLifetime(updated.role) });
+
+      return reply.send(ok({ accessToken }, 'Password berhasil diubah'));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Gagal mengubah password';
       return reply.code(400).send(badRequest(message, 'CHANGE_PASSWORD_FAILED'));
-    }
-  });
-
-  // PATCH /api/auth/users/:id/reset-password (admin only)
-  app.patch('/users/:id/reset-password', {
-    preHandler: [app.adminOnly],
-  }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { newPassword } = request.body as { newPassword: string };
-
-    if (!newPassword || newPassword.length < 6) {
-      return reply.code(400).send(validationError('Password baru minimal 6 karakter'));
-    }
-
-    try {
-      await authService.adminResetPassword(id, newPassword);
-      return reply.send(ok(null, 'Password berhasil direset'));
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Gagal reset password';
-      return reply.code(400).send(badRequest(message, 'RESET_FAILED'));
     }
   });
 }

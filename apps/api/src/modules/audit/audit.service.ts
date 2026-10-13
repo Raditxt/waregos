@@ -5,6 +5,7 @@ import { logger } from '../../shared/logger';
 
 export type ActivityAction =
   | 'LOGIN'
+  | 'LOGIN_FAILED'
   | 'LOGOUT'
   | 'CHANGE_PASSWORD'
   | 'RESET_PASSWORD'
