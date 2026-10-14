@@ -69,6 +69,23 @@ class ApiClient {
     return null;
   }
 
+  /// Pesan untuk ditampilkan dari error apa pun: gangguan jaringan, atau pesan server bila ada.
+  static String describeError(Object e, {required String fallback}) {
+    if (e is DioException) {
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+        case DioExceptionType.connectionError:
+          return 'Tidak bisa terhubung ke server. Periksa WiFi dan pastikan server menyala.';
+        default:
+          final r = e.response;
+          return (r != null ? serverMessage(r) : null) ?? fallback;
+      }
+    }
+    return fallback;
+  }
+
   static Future<Response> get(String path, {Map<String, dynamic>? params}) async {
     return instance.get(path, queryParameters: params);
   }
