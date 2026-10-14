@@ -16,6 +16,7 @@ out/
 # Backup files (data sensitif)
 backups/
 *.sql
+!packages/database/prisma/migrations/**/migration.sql
 *.dump
 
 # Local scripts (Windows specific)
