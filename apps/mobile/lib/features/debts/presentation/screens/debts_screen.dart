@@ -408,68 +408,90 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Catat Hutang', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: 'Nama Pelanggan *',
-                hintText: 'Bu Sari, Pak Budi...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Total Hutang *',
-                prefixText: 'Rp ',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesCtrl,
-              decoration: InputDecoration(
-                labelText: 'Catatan (opsional)',
-                hintText: 'Indomie 2, Aqua 1...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          FilledButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              final amount = double.tryParse(amountCtrl.text) ?? 0;
-              if (name.isEmpty || amount <= 0) return;
-
-              final success = await ref.read(debtsProvider.notifier).addDebt(
-                    customerName: name,
-                    amount: amount,
-                    notes: notesCtrl.text.trim(),
-                  );
-
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Hutang berhasil dicatat' : 'Gagal mencatat hutang'),
-                    backgroundColor: success ? semantic.success : colorScheme.error,
+      builder: (ctx) {
+        var submitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) => AlertDialog(
+            title: Text('Catat Hutang', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  enabled: !submitting,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Pelanggan *',
+                    hintText: 'Bu Sari, Pak Budi...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                );
-              }
-            },
-            child: const Text('Simpan'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  enabled: !submitting,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Total Hutang *',
+                    prefixText: 'Rp ',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesCtrl,
+                  enabled: !submitting,
+                  decoration: InputDecoration(
+                    labelText: 'Catatan (opsional)',
+                    hintText: 'Indomie 2, Aqua 1...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  final amount = double.tryParse(amountCtrl.text) ?? 0;
+                  if (name.isEmpty || amount <= 0) return;
+                  if (submitting) return;
+                  setStateDialog(() => submitting = true);
+
+                  final result = await ref.read(debtsProvider.notifier).addDebt(
+                        customerName: name,
+                        amount: amount,
+                        notes: notesCtrl.text.trim(),
+                      );
+
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(result.ok
+                            ? 'Hutang berhasil dicatat'
+                            : (result.message ?? 'Gagal mencatat hutang')),
+                        backgroundColor:
+                            result.ok ? semantic.success : colorScheme.error,
+                      ),
+                    );
+                  }
+                },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Simpan'),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -482,67 +504,89 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Catat Pembayaran', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: 'Nama Pelanggan *',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Jumlah Bayar *',
-                prefixText: 'Rp ',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesCtrl,
-              decoration: InputDecoration(
-                labelText: 'Catatan (opsional)',
-                hintText: 'Bayar sebagian, lunas...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          FilledButton(
-            onPressed: () async {
-              final name = nameCtrl.text.trim();
-              final amount = double.tryParse(amountCtrl.text) ?? 0;
-              if (name.isEmpty || amount <= 0) return;
-
-              final success = await ref.read(debtsProvider.notifier).addPayment(
-                    customerName: name,
-                    amount: amount,
-                    notes: notesCtrl.text.trim(),
-                  );
-
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Pembayaran berhasil dicatat' : 'Gagal mencatat pembayaran'),
-                    backgroundColor: success ? semantic.success : colorScheme.error,
+      builder: (ctx) {
+        var submitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) => AlertDialog(
+            title: Text('Catat Pembayaran', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  enabled: !submitting,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Pelanggan *',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                );
-              }
-            },
-            child: const Text('Simpan'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  enabled: !submitting,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Jumlah Bayar *',
+                    prefixText: 'Rp ',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesCtrl,
+                  enabled: !submitting,
+                  decoration: InputDecoration(
+                    labelText: 'Catatan (opsional)',
+                    hintText: 'Bayar sebagian, lunas...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  final amount = double.tryParse(amountCtrl.text) ?? 0;
+                  if (name.isEmpty || amount <= 0) return;
+                  if (submitting) return;
+                  setStateDialog(() => submitting = true);
+
+                  final result = await ref.read(debtsProvider.notifier).addPayment(
+                        customerName: name,
+                        amount: amount,
+                        notes: notesCtrl.text.trim(),
+                      );
+
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(result.ok
+                            ? 'Pembayaran berhasil dicatat'
+                            : (result.message ?? 'Gagal mencatat pembayaran')),
+                        backgroundColor:
+                            result.ok ? semantic.success : colorScheme.error,
+                      ),
+                    );
+                  }
+                },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Simpan'),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

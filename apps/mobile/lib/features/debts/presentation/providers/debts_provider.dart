@@ -92,6 +92,17 @@ class DebtsState {
   }
 }
 
+/// Hasil aksi tulis (catat hutang / catat bayar). Dio tidak melempar error untuk 4xx,
+/// jadi keberhasilan harus dibaca dari status code, bukan dari "tidak ada exception".
+class ActionResult {
+  final bool ok;
+  final String? message;
+  const ActionResult.success()
+      : ok = true,
+        message = null;
+  const ActionResult.failure(this.message) : ok = false;
+}
+
 class DebtsNotifier extends StateNotifier<DebtsState> {
   DebtsNotifier() : super(const DebtsState());
 
@@ -99,14 +110,21 @@ class DebtsNotifier extends StateNotifier<DebtsState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await ApiClient.get(ApiConstants.debts);
+      if (!ApiClient.isSuccess(res)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: ApiClient.serverMessage(res) ?? 'Gagal memuat data hutang',
+        );
+        return;
+      }
       final debts = (res.data['data'] as List)
           .map((e) => DebtSummary.fromJson(e as Map<String, dynamic>))
           .toList();
       state = state.copyWith(debts: debts, isLoading: false);
-    } catch (_) {
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Gagal memuat data hutang',
+        error: ApiClient.describeError(e, fallback: 'Gagal memuat data hutang'),
       );
     }
   }
@@ -116,45 +134,60 @@ class DebtsNotifier extends StateNotifier<DebtsState> {
       final res = await ApiClient.get(
         '${ApiConstants.debts}/${Uri.encodeComponent(customerName)}',
       );
+      if (!ApiClient.isSuccess(res)) return null;
       return res.data['data'] as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
   }
 
-  Future<bool> addDebt({
+  Future<ActionResult> addDebt({
     required String customerName,
     required double amount,
     String? notes,
   }) async {
     try {
-      await ApiClient.post(ApiConstants.debts, data: {
+      final res = await ApiClient.post(ApiConstants.debts, data: {
         'customerName': customerName,
         'amount': amount,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       });
+      if (!ApiClient.isSuccess(res)) {
+        return ActionResult.failure(
+          ApiClient.serverMessage(res) ?? 'Gagal mencatat hutang',
+        );
+      }
       await loadDebts();
-      return true;
-    } catch (_) {
-      return false;
+      return const ActionResult.success();
+    } catch (e) {
+      return ActionResult.failure(
+        ApiClient.describeError(e, fallback: 'Gagal mencatat hutang'),
+      );
     }
   }
 
-  Future<bool> addPayment({
+  Future<ActionResult> addPayment({
     required String customerName,
     required double amount,
     String? notes,
   }) async {
     try {
-      await ApiClient.post(ApiConstants.debtPayment, data: {
+      final res = await ApiClient.post(ApiConstants.debtPayment, data: {
         'customerName': customerName,
         'amount': amount,
         'notes': notes ?? 'Bayar hutang',
       });
+      if (!ApiClient.isSuccess(res)) {
+        return ActionResult.failure(
+          ApiClient.serverMessage(res) ?? 'Gagal mencatat pembayaran',
+        );
+      }
       await loadDebts();
-      return true;
-    } catch (_) {
-      return false;
+      return const ActionResult.success();
+    } catch (e) {
+      return ActionResult.failure(
+        ApiClient.describeError(e, fallback: 'Gagal mencatat pembayaran'),
+      );
     }
   }
 }

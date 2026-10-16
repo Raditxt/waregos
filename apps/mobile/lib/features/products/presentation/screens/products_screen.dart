@@ -83,7 +83,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
         TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: 'Semua (${state.products.length})'),
+            Tab(text: 'Semua (${state.total})'),
             Tab(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
