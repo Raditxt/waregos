@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/.env
+**/.env.*
+!**/.env.example
+apps/mobile
+apps/web/*
+!apps/web/package.json
+docs
+*.md
+*.ps1
