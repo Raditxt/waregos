@@ -3,15 +3,24 @@
 // Centralized error handling
 // ============================================
 
-import { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyError, FastifyInstance } from 'fastify'
 import { logger } from './logger'
-import { serverError, validationError, badRequest } from './response'
+import { serverError, badRequest } from './response'
 
-export const globalErrorHandler = (
-  error: FastifyError,
-  request: FastifyRequest,
-  reply: FastifyReply
+// Tipe handler diambil dari Fastify sendiri supaya cocok dengan signature
+// setErrorHandler() versi 5.12+, termasuk varian HTTP/2.
+// Fastify 5.12 mengetikkan `error` sebagai `unknown`; kita sempitkan ke
+// FastifyError di dalam handler karena semua error dari framework dan
+// plugin memang FastifyError.
+type ErrorHandler = Parameters<FastifyInstance['setErrorHandler']>[0]
+
+export const globalErrorHandler: ErrorHandler = (
+  err,
+  request,
+  reply
 ): void => {
+  const error = err as FastifyError
+
   // Log error
   logger.error(
     `${request.method} ${request.url} → ${error.message}`,
