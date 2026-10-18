@@ -1,0 +1,64 @@
+# Gladi bersih lokal: database kosong -> migrasi -> seed -> API, semuanya dalam container.
+# BUKAN untuk produksi. Jalankan dari root repo:
+#   docker compose -f docker-compose.rehearsal.yml --env-file .env.rehearsal up --build
+
+name: waregos-rehearsal
+
+x-api-build: &api-build
+  build:
+    context: .
+    dockerfile: apps/api/Dockerfile
+  image: waregos-api:local
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${REHEARSAL_DB_PASSWORD:?isi REHEARSAL_DB_PASSWORD di .env.rehearsal}
+      POSTGRES_DB: waregos_test
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d waregos_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Berjalan sekali lalu berhenti: terapkan migrasi dan seed admin.
+  # Inilah yang nanti dilakukan juga terhadap database produksi.
+  migrate:
+    <<: *api-build
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /app/packages/database
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${REHEARSAL_DB_PASSWORD}@db:5432/waregos_test?schema=public
+      DIRECT_URL: postgresql://postgres:${REHEARSAL_DB_PASSWORD}@db:5432/waregos_test?schema=public
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:?isi SEED_ADMIN_USERNAME di .env.rehearsal}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?isi SEED_ADMIN_PASSWORD di .env.rehearsal}
+    command:
+      - sh
+      - -c
+      - /app/node_modules/.bin/prisma migrate deploy && /app/node_modules/.bin/tsx prisma/seed.ts
+    restart: "no"
+
+  api:
+    <<: *api-build
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "3002:3001"
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${REHEARSAL_JWT_SECRET:?isi REHEARSAL_JWT_SECRET di .env.rehearsal}
+      DATABASE_URL: postgresql://postgres:${REHEARSAL_DB_PASSWORD}@db:5432/waregos_test?schema=public
+      CORS_ORIGINS: http://localhost:3000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

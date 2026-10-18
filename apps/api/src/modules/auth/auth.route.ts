@@ -21,6 +21,7 @@ export async function authRoutes(app: FastifyInstance) {
         max: 5,
         timeWindow: '1 minute',
         errorResponseBuilder: () => ({
+          statusCode: 429, // <--- WAJIB ADA: agar Fastify mengembalikan 429, bukan 500
           success: false,
           error: 'TOO_MANY_REQUESTS',
           message: 'Terlalu banyak percobaan login. Coba lagi dalam 1 menit.',
