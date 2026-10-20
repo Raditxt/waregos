@@ -58,3 +58,4 @@ flutter_*.png
 # Testing
 coverage/
 .nyc_output/
+.env.supabase

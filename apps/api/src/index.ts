@@ -41,11 +41,12 @@ import { activityRoutes } from './modules/audit/audit.route';
 // Ganti ke daftar CIDR atau fungsi yang memeriksa alamat koneksi.
 //
 // - TRUST_PROXY=true atau TRUST_PROXY_HOPS>0 → percaya proxy di jaringan privat
-//   (Railway, Docker network, lokal). X-Forwarded-For dari alamat privat dipakai.
+//   (Railway, Docker network, lokal, CGNAT/Tailscale 100.0.0.0/8).
+//   X-Forwarded-For dari alamat privat dipakai.
 // - Default (unset) → tidak ada proxy: X-Forwarded-For diabaikan sepenuhnya.
 const trustProxy: boolean | string[] =
   process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0
-    ? ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
+    ? ['127.0.0.1', '::1', '10.0.0.0/8', '100.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
     : false;
 
 const app = Fastify({
