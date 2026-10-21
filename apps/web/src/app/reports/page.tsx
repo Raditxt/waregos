@@ -343,7 +343,7 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                       <XAxis
                         dataKey="date"
-                        tickFormatter={(v) => format(new Date(v), 'd')}
+                        tickFormatter={(v) => format(new Date(v as string), 'd')}
                         tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                         axisLine={false} tickLine={false}
                       />
@@ -355,7 +355,7 @@ export default function ReportsPage() {
                       <Tooltip
                         contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '12px', color: 'var(--foreground)' }}
                         formatter={(value) => [formatRupiah(Number(value)), 'Omzet']}
-                        labelFormatter={(label) => format(new Date(label), 'd MMMM yyyy', { locale: id })}
+                        labelFormatter={(label) => format(new Date(label as string), 'd MMMM yyyy', { locale: id })}
                       />
                       <Area type="monotone" dataKey="totalRevenue" stroke="#f97316" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#f97316', stroke: 'var(--card)', strokeWidth: 2 }} />
                     </AreaChart>

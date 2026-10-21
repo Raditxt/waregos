@@ -423,7 +423,7 @@ export default function DashboardPage() {
                 />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={(v) => format(new Date(v), 'd', { locale: id })}
+                  tickFormatter={(v) => format(new Date(v as string), 'd', { locale: id })}
                   tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                   axisLine={false}
                   tickLine={false}
@@ -446,7 +446,7 @@ export default function DashboardPage() {
                   }}
                   formatter={(value) => [formatRupiah(Number(value)), 'Omzet']}
                   labelFormatter={(label) =>
-                    format(new Date(label), 'd MMMM yyyy', { locale: id })
+                    format(new Date(label as string), 'd MMMM yyyy', { locale: id })
                   }
                 />
                 <Area
