@@ -37,9 +37,13 @@ import { debtRoutes } from './modules/debt/debt.route';
 import { activityRoutes } from './modules/audit/audit.route';
 
 // Railway membuang/merutekan ulang X-Forwarded-For dari edge proxy-nya.
-// Karena container ini TIDAK bisa diakses langsung dari internet (selalu lewat proxy Railway),
-// kita aman untuk mempercayai semua proxy (true).
-const trustProxy: boolean = process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0;
+// Alih-alih memercayai semua proxy (true) yang rawan X-Forwarded-For spoofing,
+// kita hanya memercayai rentang CIDR spesifik yang diketahui.
+// 152.233.0.0/16 ditambahkan berdasarkan observasi IP hop di log Railway.
+const trustProxy: boolean | string[] =
+  process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0
+    ? ['127.0.0.1', '::1', '10.0.0.0/8', '100.0.0.0/8', '152.233.0.0/16', '172.16.0.0/12', '192.168.0.0/16']
+    : false;
 
 const app = Fastify({
   logger: false, // Pakai custom logger
