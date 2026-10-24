@@ -1,0 +1,64 @@
+﻿name: db-backup
+
+on:
+  schedule:
+    - cron: "0 20 * * *"   # 20:00 UTC = 04:00 WITA
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PG_MAJOR: ${{ vars.PG_MAJOR }}
+      AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
+    steps:
+      - name: Validasi konfigurasi
+        run: |
+          set -euo pipefail
+          case "${AGE_RECIPIENT:-}" in age1*) ;; *) echo "::error::AGE_RECIPIENT kosong atau bukan kunci publik age"; exit 1 ;; esac
+          case "${PG_MAJOR:-}" in ''|*[!0-9]*) echo "::error::PG_MAJOR harus angka (mis. 17)"; exit 1 ;; esac
+
+      - name: Pasang age
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends age
+
+      - name: Dump, verifikasi, enkripsi
+        id: dump
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          IMAGE="postgres:${PG_MAJOR}"
+
+          docker run --rm -e BACKUP_DATABASE_URL "$IMAGE" \
+            sh -c 'pg_dump --dbname="$BACKUP_DATABASE_URL" --format=custom --no-owner --no-acl --schema=public' > dump.bin
+
+          # Verifikasi: arsip terbaca dan memuat tabel inti
+          docker run --rm -i "$IMAGE" pg_restore --list < dump.bin > toc.txt
+          test "$(wc -l < toc.txt)" -gt 40
+          grep -q 'TABLE DATA public users' toc.txt
+          grep -q 'TABLE DATA public _prisma_migrations' toc.txt
+
+          OUT="waregos-$(date -u +%Y%m%d-%H%M%SZ).dump.age"
+          age -r "$AGE_RECIPIENT" -o "$OUT" dump.bin
+          shred -u dump.bin toc.txt
+          test -s "$OUT"
+          ls -l "$OUT"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Unggah backup terenkripsi
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ steps.dump.outputs.file }}
+          path: ${{ steps.dump.outputs.file }}
+          retention-days: 90
+          if-no-files-found: error
