@@ -96,8 +96,7 @@ export default function PurchasesPage() {
       setUnits(unitRes.data.data ?? [])
     }
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  })
 
   const searchProducts = useCallback(async (q: string) => {
     if (!q.trim()) { setSearchResults([]); return }
@@ -243,7 +242,6 @@ export default function PurchasesPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -412,7 +410,6 @@ export default function PurchasesPage() {
         )}
       </div>
 
-      {/* Dialog — compact: max-w-lg, tinggi auto dengan cap 85vh */}
       {dialogOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
@@ -424,7 +421,6 @@ export default function PurchasesPage() {
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header — fixed */}
             <div
               className="flex items-start justify-between gap-3 px-4 sm:px-5 py-3.5 shrink-0"
               style={{ borderBottom: '1px solid var(--border)' }}
@@ -446,7 +442,6 @@ export default function PurchasesPage() {
               </button>
             </div>
 
-            {/* Top section — supplier, catatan, search (fixed) */}
             <div
               className="shrink-0 px-4 sm:px-5 py-3 space-y-3"
               style={{ borderBottom: '1px solid var(--border)' }}
@@ -488,7 +483,6 @@ export default function PurchasesPage() {
                 </div>
               </div>
 
-              {/* Search produk */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
                   TAMBAH PRODUK
@@ -575,7 +569,6 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            {/* Scrollable content */}
             <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
               {quickAddOpen && (
                 <div
@@ -722,7 +715,6 @@ export default function PurchasesPage() {
                       className="px-3 py-2.5 rounded-xl space-y-2"
                       style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}
                     >
-                      {/* Baris 1: nama + hapus */}
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
                           {item.productName}
@@ -736,7 +728,6 @@ export default function PurchasesPage() {
                         </button>
                       </div>
 
-                      {/* Baris 2: qty + harga + subtotal */}
                       <div className="flex items-center gap-2">
                         <div className="space-y-0.5">
                           <p className="text-[10px]" style={{ color: 'var(--muted-foreground)' }}>Jml</p>
@@ -800,7 +791,6 @@ export default function PurchasesPage() {
               )}
             </div>
 
-            {/* Footer — fixed */}
             <div
               className="px-4 sm:px-5 py-3 shrink-0 space-y-2.5"
               style={{ borderTop: '1px solid var(--border)' }}

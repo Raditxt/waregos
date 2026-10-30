@@ -30,10 +30,6 @@ interface UserForm {
 
 const emptyForm: UserForm = { name: '', username: '', password: '', role: 'CASHIER' }
 
-/* ============================================================
-   Reusable: Modal shell — matches card style (rounded-2xl, border,
-   var(--card)) used everywhere else in the design system.
-   ============================================================ */
 function Modal({
   open, onClose, title, icon: Icon, iconColor, iconBg, children, footer, maxWidth = '28rem',
 }: {
@@ -105,10 +101,6 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--foreground)',
 }
 
-/* ============================================================
-   Reusable: Buttons — mirrors the refresh-button pattern in
-   dashboard.tsx (background/color swap via onMouseEnter/Leave).
-   ============================================================ */
 function PrimaryButton({
   onClick, disabled, children,
 }: { onClick?: () => void; disabled?: boolean; children: React.ReactNode }) {
@@ -264,7 +256,6 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -283,7 +274,6 @@ export default function UsersPage() {
         </PrimaryButton>
       </div>
 
-      {/* List */}
       <div
         className="rounded-2xl p-5"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -396,7 +386,6 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Add User Modal */}
       <Modal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -455,7 +444,6 @@ export default function UsersPage() {
         </FormField>
       </Modal>
 
-      {/* Reset Password Modal */}
       <Modal
         open={resetOpen}
         onClose={() => { setResetOpen(false); setNewPassword('') }}
@@ -489,7 +477,6 @@ export default function UsersPage() {
         </FormField>
       </Modal>
 
-      {/* Confirm Toggle Active Modal */}
       <Modal
         open={!!confirmTarget}
         onClose={() => setConfirmTarget(null)}

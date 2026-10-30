@@ -87,7 +87,6 @@ export default function DashboardPage() {
         setMonthly(results[3].data.data.daily ?? [])
       }
     } catch {
-      // silent fail
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -97,8 +96,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const init = async () => { await fetchData() }
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  },)
 
   if (loading) {
     return (
@@ -150,7 +148,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -186,7 +183,6 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {summaryCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
           <div
@@ -226,9 +222,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Alerts Row */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {/* Expiry Alert */}
         {expiring.length > 0 && (
           <div
             className="rounded-2xl p-5"
@@ -298,7 +292,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Dead Stock */}
         {deadStock.length > 0 && (
           <div
             className="rounded-2xl p-5"
@@ -366,7 +359,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Chart — Admin only */}
       {isAdmin && (
         <div
           className="rounded-2xl p-5"

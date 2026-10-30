@@ -3,11 +3,7 @@ import { CreateProductInput, UpdateProductInput, ProductQueryInput } from './pro
 import { ProductWithRelations } from '../../shared/prisma-types';
 import { parsePagination, buildMeta } from '../../shared/pagination';
 
-// ─── CUSTOM ERROR ────────────────────────────────────────────
-// Dipakai biar route bisa bedain "produk gak ketemu" (→ 404) dari
-// error lain seperti FK constraint / validation (→ 400).
-// Tanpa ini, route bakal nangkep semua error jadi 404 dan nyamarin
-// penyebab asli (persis bug PriceHistory.changedBy = 'ADMIN' kemarin).
+// CUSTOM ERROR
 export class ProductNotFoundError extends Error {
   constructor(message = 'Produk tidak ditemukan') {
     super(message);
@@ -21,7 +17,7 @@ export class ProductsService {
     private readonly role?: string
   ) {}
 
-  // ─── FIND ALL ────────────────────────────────────────────────
+  // FIND ALL
   async findAll(query: ProductQueryInput) {
     const { page, limit, skip } = parsePagination(query);
 
@@ -38,10 +34,6 @@ export class ProductsService {
     if (query.categoryId) {
       where.categoryId = query.categoryId;
     }
-
-    // Bandingkan kolom stock vs kolom minStock langsung di database.
-    // Sebelumnya difilter di JS setelah pagination → total & meta jadi salah
-    // (halaman bisa kosong walau masih ada produk low-stock di halaman lain).
     if (query.lowStock === 'true') {
       where.stock = { lte: this.prisma.product.fields.minStock };
     }
@@ -66,7 +58,7 @@ export class ProductsService {
     };
   }
 
-  // ─── FIND BY ID ──────────────────────────────────────────────
+  // FIND BY ID
   async findById(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -79,7 +71,7 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // ─── FIND BY BARCODE ────────────────────────────────────────
+  // FIND BY BARCODE
   async findByBarcode(barcode: string) {
     const product = await this.prisma.product.findUnique({
       where: { barcode },
@@ -92,7 +84,7 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // ─── CREATE PRODUCT ─────────────────────────────────────────
+  // CREATE PRODUCT
   async create(input: CreateProductInput) {
     const product = await this.prisma.product.create({
       data: {
@@ -116,11 +108,7 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // ─── UPDATE PRODUCT ─────────────────────────────────────────
-  // Signature: (id, input, userId?)
-  // userId WAJIB berupa UUID user asli (payload.sub), BUKAN role string.
-  // Kalau userId diisi 'ADMIN' dsb → FK constraint di PriceHistory bakal
-  // gagal karena changedBy harus nunjuk ke User.id yang valid.
+  // UPDATE PRODUCT
   async update(id: string, input: UpdateProductInput, userId?: string) {
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw new ProductNotFoundError();
@@ -149,17 +137,6 @@ export class ProductsService {
         unit: { select: { id: true, name: true, symbol: true } },
       },
     });
-
-    // Catat price history jika harga beli berubah dan userId tersedia.
-    // Guard lengkap:
-    // - userId wajib ada (butuh pencatat)
-    // - input.buyPrice !== undefined → field memang dikirim di request
-    // - input.buyPrice !== null → bukan aksi "kosongkan harga beli"
-    // - existing.buyPrice !== null → ada harga lama untuk dibandingkan
-    // - nilainya memang berbeda → baru dicatat
-    // Kalau buyPrice lama null tapi baru diisi angka (mis. admin melengkapi
-    // produk yang tadi dibuat kasir tanpa harga beli), itu bukan "perubahan
-    // harga" melainkan pengisian awal — tidak perlu masuk history.
     if (
       userId &&
       input.buyPrice !== undefined &&
@@ -180,7 +157,7 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // ─── SOFT DELETE ────────────────────────────────────────────
+  // SOFT DELETE
   async delete(id: string): Promise<void> {
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw new ProductNotFoundError();
@@ -191,7 +168,7 @@ export class ProductsService {
     });
   }
 
-  // ─── LOW STOCK REPORT ──────────────────────────────────────
+  // LOW STOCK REPORT
   async getLowStock() {
     const products = await this.prisma.product.findMany({
       where: {
@@ -211,7 +188,7 @@ export class ProductsService {
     }));
   }
 
-  // ─── EXPIRING SOON REPORT ──────────────────────────────────
+  // EXPIRING SOON REPORT 
   async getExpiringSoon() {
     const products = await this.prisma.product.findMany({
       where: { isActive: true, expiryDate: { not: null } },
@@ -243,7 +220,7 @@ export class ProductsService {
       .filter((p) => p.status !== 'ok');
   }
 
-  // ─── DEAD STOCK REPORT ─────────────────────────────────────
+  // DEAD STOCK REPORT
   async getDeadStock(dayThreshold = 30) {
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - dayThreshold);
@@ -269,7 +246,6 @@ export class ProductsService {
           )
         : null;
 
-      // buyPrice bisa null → jaga-jaga biar stockValue gak salah hitung jadi 0
       const buyPriceNum = p.buyPrice !== null ? Number(p.buyPrice) : null;
 
       return {
@@ -292,7 +268,7 @@ export class ProductsService {
     });
   }
 
-  // ─── FORMAT RESPONSE ────────────────────────────────────────
+  // FORMAT RESPONSE
   private formatProduct(p: ProductWithRelations) {
     const expiryStatus = this.calculateExpiryStatus(
       p.expiryDate,
@@ -309,7 +285,6 @@ export class ProductsService {
       unitId: p.unitId,
       unitName: p.unit.name,
       unitSymbol: p.unit.symbol,
-      // buyPrice bisa null (mis. user non-ADMIN atau data lama yang belum diisi)
       buyPrice:
         this.role === 'ADMIN'
           ? p.buyPrice !== null
@@ -328,7 +303,7 @@ export class ProductsService {
     };
   }
 
-  // ─── HELPER: EXPIRY STATUS ─────────────────────────────────
+  // HELPER: EXPIRY STATUS
   private calculateExpiryStatus(
     expiryDate: Date | null,
     alertDays: number | null

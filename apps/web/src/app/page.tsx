@@ -4,13 +4,6 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
 
-/* ============================================================
-   SPLASH / ENTRY PAGE
-   - Hydrate auth store
-   - Tampilkan logo minimal 1.5 detik
-   - Redirect ke /dashboard kalau sudah login, /login kalau belum
-   ============================================================ */
-
 const MIN_SPLASH_MS = 1500
 
 export default function SplashPage() {
@@ -19,7 +12,6 @@ export default function SplashPage() {
   const hasRun = useRef(false)
 
   useEffect(() => {
-    // Guard: React 18 StrictMode jalan 2x di dev — cukup sekali
     if (hasRun.current) return
     hasRun.current = true
 
@@ -32,11 +24,9 @@ export default function SplashPage() {
         console.error('[Splash] hydrate gagal:', err)
       }
 
-      // Minimum splash duration supaya logo sempat terlihat
       await new Promise((resolve) => setTimeout(resolve, MIN_SPLASH_MS))
       if (cancelled) return
 
-      // Baca state terbaru langsung dari store (bukan dari closure)
       const { user } = useAuthStore.getState()
       router.replace(user ? '/dashboard' : '/login')
     }
@@ -56,7 +46,6 @@ export default function SplashPage() {
           'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
       }}
     >
-      {/* Dekorasi blob halus di background */}
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full blur-3xl opacity-40"
@@ -68,24 +57,19 @@ export default function SplashPage() {
         style={{ background: '#fbbf24' }}
       />
 
-      {/* Logo & nama brand */}
       <div className="relative flex flex-col items-center gap-6 animate-pulse">
-        {/* Logo */}
         <div className="flex flex-col items-center gap-6">
           <div
             className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-xl"
             style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
           >
-            {/* SVG inline storefront */}
             <svg
               viewBox="0 0 64 64"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
               className="w-14 h-14"
             >
-              {/* Roof */}
               <path d="M8 26L32 12L56 26Z" fill="white" opacity="0.95" />
-              {/* Body */}
               <rect
                 x="14"
                 y="26"
@@ -95,9 +79,7 @@ export default function SplashPage() {
                 fill="white"
                 opacity="0.95"
               />
-              {/* Door */}
               <rect x="24" y="38" width="16" height="14" rx="2" fill="#f97316" />
-              {/* Window left */}
               <rect
                 x="16"
                 y="29"
@@ -107,7 +89,6 @@ export default function SplashPage() {
                 fill="#f97316"
                 opacity="0.7"
               />
-              {/* Window right */}
               <rect
                 x="38"
                 y="29"
@@ -117,7 +98,6 @@ export default function SplashPage() {
                 fill="#f97316"
                 opacity="0.7"
               />
-              {/* Awning */}
               <rect
                 x="10"
                 y="23"
@@ -143,7 +123,6 @@ export default function SplashPage() {
         </div>
       </div>
 
-      {/* Indikator loading */}
       <div
         className="absolute bottom-12 flex flex-col items-center gap-3"
         role="status"

@@ -68,29 +68,24 @@ type TabType = 'daily' | 'monthly' | 'products' | 'stock'
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('daily')
 
-  // Nilai stabil (dihitung sekali saat mount)
   const [today] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [monthValue, setMonthValue] = useState(() => {
     const n = new Date()
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
   })
 
-  // Daily
   const [dailyDate, setDailyDate] = useState(today)
   const [daily, setDaily] = useState<DailySummary | null>(null)
   const [loadingDaily, setLoadingDaily] = useState(false)
 
-  // Monthly
   const [monthly, setMonthly] = useState<MonthlyReport | null>(null)
   const [loadingMonthly, setLoadingMonthly] = useState(false)
 
-  // Top products
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [productDateFrom, setProductDateFrom] = useState('')
   const [productDateTo, setProductDateTo] = useState(today)
 
-  // Stock movements
   const [movements, setMovements] = useState<StockMovement[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
 
@@ -146,7 +141,6 @@ export default function ReportsPage() {
     }
   }, [setMovements, setLoadingStock])
 
-  // Initial load
   useEffect(() => {
     const init = async () => { await fetchDaily(today) }
     init()
@@ -188,7 +182,6 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
           Laporan
@@ -198,7 +191,6 @@ export default function ReportsPage() {
         </p>
       </div>
 
-      {/* Tabs */}
       <div
         className="flex gap-1 p-1 rounded-xl w-fit"
         style={{ background: 'var(--muted)' }}
@@ -219,10 +211,8 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* DAILY TAB */}
       {activeTab === 'daily' && (
         <div className="space-y-4">
-          {/* Date picker */}
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -273,10 +263,8 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* MONTHLY TAB */}
       {activeTab === 'monthly' && (
         <div className="space-y-4">
-          {/* Month picker */}
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -298,7 +286,6 @@ export default function ReportsPage() {
             </div>
           ) : monthly ? (
             <div className="space-y-4">
-              {/* Summary */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Transaksi', value: `${monthly.totalTransactions}`, icon: ShoppingCart, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
@@ -317,7 +304,6 @@ export default function ReportsPage() {
                 ))}
               </div>
 
-              {/* Chart */}
               {monthly.daily.length > 0 ? (
                 <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                   <div className="flex items-center justify-between mb-4">
@@ -372,10 +358,8 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* PRODUCTS TAB */}
       {activeTab === 'products' && (
         <div className="space-y-4">
-          {/* Date filter */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
               <Calendar className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
@@ -414,7 +398,6 @@ export default function ReportsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Bar chart */}
               <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <p className="text-sm font-semibold mb-4" style={{ color: 'var(--foreground)' }}>
                   Top {topProducts.length} Produk Terlaris
@@ -441,7 +424,6 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Table */}
               <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -486,7 +468,6 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* STOCK TAB */}
       {activeTab === 'stock' && (
         <div className="space-y-3">
           {loadingStock ? (

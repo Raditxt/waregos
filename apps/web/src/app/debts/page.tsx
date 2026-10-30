@@ -128,7 +128,6 @@ export default function DebtsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -165,7 +164,6 @@ export default function DebtsPage() {
         </div>
       </div>
 
-      {/* List */}
       <div
         className="rounded-2xl overflow-hidden"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -227,7 +225,6 @@ export default function DebtsPage() {
         )}
       </div>
 
-      {/* History Bottom Sheet */}
       {historyOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end lg:items-center justify-center"
@@ -239,12 +236,10 @@ export default function DebtsPage() {
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Handle bar — mobile only */}
             <div className="flex justify-center pt-3 pb-1 lg:hidden">
               <div className="w-10 h-1 rounded-full" style={{ background: 'var(--border)' }} />
             </div>
 
-            {/* Header */}
             <div
               className="flex items-center justify-between px-5 py-4 shrink-0"
               style={{ borderBottom: '1px solid var(--border)' }}
@@ -269,7 +264,6 @@ export default function DebtsPage() {
               </button>
             </div>
 
-            {/* Quick pay button */}
             {totalDebt > 0 && (
               <div className="px-5 py-3 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
                 <button
@@ -295,7 +289,6 @@ export default function DebtsPage() {
               </div>
             )}
 
-            {/* History list */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {historyLoading ? (
                 <div className="flex justify-center py-8">
@@ -367,7 +360,6 @@ export default function DebtsPage() {
         </div>
       )}
 
-      {/* Add Debt Dialog */}
       {addDebtOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -445,7 +437,6 @@ export default function DebtsPage() {
         </div>
       )}
 
-      {/* Payment Dialog */}
       {paymentOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"

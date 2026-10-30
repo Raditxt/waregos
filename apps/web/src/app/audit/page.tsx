@@ -21,9 +21,6 @@ interface ActivityLog {
 
 interface ActionOption { value: string; label: string }
 
-/* Map aksi ke kelas badge semantic yang sudah didefinisikan di globals.css
-   (.badge-primary / .badge-accent / .badge-success / .badge-error /
-    .badge-warning / .badge-info / .badge-neutral) */
 const ACTION_BADGE_CLASS: Record<string, string> = {
   LOGIN: 'badge-info',
   LOGIN_FAILED: 'badge-error',
@@ -128,8 +125,7 @@ export default function AuditPage() {
       setActions(actionsRes.data.data)
     }
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  },)
 
   const formatDetails = (details: Record<string, unknown> | null): string => {
     if (!details) return '—'
@@ -147,7 +143,6 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -162,7 +157,6 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div
         className="rounded-2xl p-4 flex flex-wrap items-center gap-3"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -202,8 +196,6 @@ export default function AuditPage() {
         </PrimaryButton>
         <OutlineButton onClick={handleReset}>Reset</OutlineButton>
       </div>
-
-      {/* Table */}
       <div
         className="rounded-2xl p-5"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -272,8 +264,6 @@ export default function AuditPage() {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
             {totalPages > 1 && (
               <div
                 className="flex items-center justify-between mt-4 pt-4"

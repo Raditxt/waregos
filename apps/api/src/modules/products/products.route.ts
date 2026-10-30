@@ -13,7 +13,7 @@ import { ok, validationError, notFound, badRequest } from '../../shared/response
 export async function productsRoutes(app: FastifyInstance) {
   const activityService = new ActivityService(app.prisma);
 
-  // ─── GET /api/products ───────────────────────────────────────
+  // GET /api/products
   app.get(
     '/',
     { preHandler: [app.authenticate] },
@@ -26,7 +26,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/low-stock ────────────────────────────
+  //  GET /api/products/low-stock
   app.get(
     '/low-stock',
     { preHandler: [app.authenticate] },
@@ -38,7 +38,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/expiring-soon ────────────────────────
+  // GET /api/products/expiring-soon 
   app.get(
     '/expiring-soon',
     { preHandler: [app.authenticate] },
@@ -50,7 +50,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/dead-stock ───────────────────────────
+  //  GET /api/products/dead-stock
   app.get(
     '/dead-stock',
     { preHandler: [app.authenticate] },
@@ -62,7 +62,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/barcode/:barcode ─────────────────────
+  // GET /api/products/barcode/:barcode
   app.get(
     '/barcode/:barcode',
     { preHandler: [app.authenticate] },
@@ -78,7 +78,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/:id/price-history ──────────────────── (Admin only)
+  //  GET /api/products/:id/price-history (Admin only)
   app.get(
     '/:id/price-history',
     { preHandler: [app.adminOnly] },
@@ -110,7 +110,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── GET /api/products/:id ──────────────────────────────────
+  // GET /api/products/:id 
   app.get(
     '/:id',
     { preHandler: [app.authenticate] },
@@ -126,7 +126,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── POST /api/products ───────────────────────────────────── (Admin only)
+  // POST /api/products (Admin only)
   app.post(
     '/',
     { preHandler: [app.adminOnly] },
@@ -155,7 +155,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── PATCH /api/products/:id ──────────────────────────────── (Admin only)
+  //  PATCH /api/products/:id (Admin only)
   app.patch(
     '/:id',
     { preHandler: [app.adminOnly] },
@@ -172,11 +172,6 @@ export async function productsRoutes(app: FastifyInstance) {
 
       try {
         const service = new ProductsService(app.prisma, 'ADMIN');
-
-        // ⚠️ 3 argumen: (id, input, userId)
-        // userId = payload.sub (UUID user asli). JANGAN kirim role string
-        // seperti 'ADMIN' di sini — PriceHistory.changedBy itu FK ke User.id
-        // dan bakal gagal insert kalau diisi 'ADMIN'.
         const product = await service.update(id, result.data, payload.sub);
 
         // Log aktivitas
@@ -190,9 +185,6 @@ export async function productsRoutes(app: FastifyInstance) {
 
         return reply.send(ok(product));
       } catch (err: unknown) {
-        // Cuma 404 kalau produknya beneran gak ada.
-        // Error lain (FK constraint, validation, dsb) → 400 dengan pesan asli,
-        // biar bug serupa gak ketutupan lagi kayak "Produk tidak ditemukan".
         if (err instanceof ProductNotFoundError) {
           return reply.code(404).send(notFound('Produk'));
         }
@@ -204,7 +196,7 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   );
 
-  // ─── DELETE /api/products/:id ─────────────────────────────── (Admin only)
+  // DELETE /api/products/:id (Admin only)
   app.delete(
     '/:id',
     { preHandler: [app.adminOnly] },

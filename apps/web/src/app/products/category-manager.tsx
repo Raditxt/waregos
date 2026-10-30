@@ -143,7 +143,6 @@ export function CategoryManager({ open, categories, onClose, onChanged }: Catego
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div
           className="flex items-center justify-between px-6 py-4 shrink-0"
           style={{ borderBottom: '1px solid var(--border)' }}
@@ -168,7 +167,6 @@ export function CategoryManager({ open, categories, onClose, onChanged }: Catego
           </button>
         </div>
 
-        {/* Tambah */}
         <div
           className="px-6 py-4 shrink-0 flex gap-2"
           style={{ borderBottom: '1px solid var(--border)' }}
@@ -203,7 +201,6 @@ export function CategoryManager({ open, categories, onClose, onChanged }: Catego
           </button>
         </div>
 
-        {/* Daftar */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           {categories.length === 0 ? (
             <p className="text-sm text-center py-6" style={{ color: 'var(--muted-foreground)' }}>
