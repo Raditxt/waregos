@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { user, hydrate } = useAuthStore()
 
-  // ── Desktop sidebar: pin + hover-expand ──
+  // Desktop sidebar: pin + hover-expand
   const [pinned, setPinned] = useState(false)
   const [isHoverExpanded, setIsHoverExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -134,7 +134,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--background)' }}>
-      {/* ── Desktop Sidebar (hover-expand + pin) ── */}
       {mounted && (
         <div
           className="hidden lg:flex shrink-0"
@@ -152,12 +151,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Fallback sebelum mounted — cegah layout jump saat hydration */}
       {!mounted && (
         <div className="hidden lg:block shrink-0" aria-hidden="true" />
       )}
 
-      {/* ── Mobile Overlay ── */}
       {mobileSidebarOpen && (
         <div
           className="fixed inset-0 z-40 lg:hidden"
@@ -166,7 +163,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ── Mobile Sidebar ── */}
       <div
         className="fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300"
         style={{
@@ -180,9 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       </div>
 
-      {/* ── Main ── */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
         <header
           className="flex lg:hidden items-center gap-3 px-4 py-3 sticky top-0 z-30"
           style={{
@@ -199,7 +193,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Brand — SVG storefront */}
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -229,7 +222,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {/* Banners */}
         {showBanner && (
           <div
             className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
@@ -251,7 +243,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Content */}
         <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto">
           {children}
         </main>

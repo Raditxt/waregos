@@ -12,7 +12,6 @@ function requireEnv(name: string): string {
 
 async function seedUsers(): Promise<string[]> {
   if (isProd) {
-    // Produksi: tidak ada akun bawaan. Admin berasal dari environment, kasir dibuat lewat aplikasi.
     const username = requireEnv('SEED_ADMIN_USERNAME').trim().toLowerCase()
     const password = requireEnv('SEED_ADMIN_PASSWORD')
     if (password.length < 12) {

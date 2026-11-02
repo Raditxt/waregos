@@ -1,8 +1,3 @@
-// ============================================
-// PRISMA TYPES — Type-safe Prisma results
-// Eliminates 'any' across all service files
-// ============================================
-
 import { Prisma } from '@prisma/client'
 
 // Product with relations
@@ -39,7 +34,7 @@ export type PurchaseWithRelations = Prisma.PurchaseGetPayload<{
     user: { select: { name: true } }
     items: {
       include: {
-        product: { select: { name: true } }
+        product: { select: { name: true; unit: { select: { symbol: true } } } }
       }
     }
   }

@@ -4,12 +4,6 @@ import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 
-/* ============================================================
-   FONT SETUP
-   - Inter          → UI / body (--font-sans)
-   - JetBrains Mono → kode / angka (--font-mono)
-   Variable ini dipakai di globals.css (@theme)
-   ============================================================ */
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
@@ -22,9 +16,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 })
 
-/* ============================================================
-   METADATA
-   ============================================================ */
 export const metadata: Metadata = {
   title: 'Waregos',
   description: 'Sistem manajemen toko kelontong untuk Toko Rabay Orange',
@@ -41,9 +32,6 @@ export const viewport = {
   ],
 }
 
-/* ============================================================
-   ROOT LAYOUT
-   ============================================================ */
 export default function RootLayout({
   children,
 }: {
@@ -56,7 +44,6 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        {/* ThemeProvider custom (bukan next-themes) — tanpa props */}
         <ThemeProvider>
           {children}
 

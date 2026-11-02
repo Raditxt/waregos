@@ -7,7 +7,6 @@ export const createProductSchema = z.object({
   categoryId: z.string().uuid({ message: 'Kategori tidak valid' }).optional(),
   unitId: z.string().uuid({ message: 'Satuan wajib dipilih' }),
 
-  // FIX: buyPrice kini wajib diisi (required) dan harus > 0.
   buyPrice: z.number().positive({ message: 'Harga beli harus lebih dari 0' }),
 
   sellPrice: z.number().positive({ message: 'Harga jual harus lebih dari 0' }),
@@ -20,14 +19,14 @@ export const createProductSchema = z.object({
 
   minStock: z.number().int().min(0).default(5),
 
-  // FIX: ganti .datetime() → .date() agar cocok dengan <input type="date">
-  // yang mengirim "YYYY-MM-DD" (bukan ISO 8601 lengkap dengan waktu).
   expiryDate: z.string().date().optional(),
 
   expiryAlertDays: z.number().int().min(1).default(7).optional(),
 })
 
-export const updateProductSchema = createProductSchema.partial()
+export const updateProductSchema = createProductSchema
+  .omit({ stock: true, buyPrice: true })
+  .partial()
 
 export const productQuerySchema = z.object({
   page: z.string().optional(),

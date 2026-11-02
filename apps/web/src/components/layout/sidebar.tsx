@@ -50,7 +50,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
         overflow: 'hidden',
       }}
     >
-      {/* Brand Row */}
       <div
         className="flex items-center px-3 py-3 shrink-0"
         style={{
@@ -59,7 +58,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           gap: '10px',
         }}
       >
-        {/* Logo — SVG storefront */}
         <div
           className="shrink-0 flex items-center justify-center rounded-xl"
           style={{
@@ -84,7 +82,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           </svg>
         </div>
 
-        {/* Brand text */}
         <div
           className="flex-1 min-w-0 overflow-hidden"
           style={{
@@ -105,7 +102,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           </p>
         </div>
 
-        {/* Pin toggle — only visible when expanded */}
         <button
           onClick={onTogglePin}
           title={pinned ? 'Unpin sidebar (hover mode)' : 'Pin sidebar (always open)'}
@@ -143,7 +139,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
         </button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {filteredItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href ||
@@ -191,7 +186,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
                 <ChevronRight className="w-3 h-3 shrink-0" />
               )}
 
-              {/* Tooltip saat collapsed */}
               {!isExpanded && (
                 <span
                   className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
@@ -221,12 +215,10 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
         })}
       </nav>
 
-      {/* Bottom */}
       <div
         className="px-2 py-3 space-y-1.5 shrink-0"
         style={{ borderTop: '1px solid var(--sidebar-border)' }}
       >
-        {/* Theme toggle */}
         <div
           className="flex items-center px-2 py-1"
           style={{ justifyContent: isExpanded ? 'space-between' : 'center' }}
@@ -246,7 +238,6 @@ export function Sidebar({ pinned, onTogglePin, isHoverExpanded }: SidebarProps) 
           <ThemeToggle />
         </div>
 
-        {/* User */}
         <div
           className="flex items-center rounded-xl overflow-hidden"
           style={{

@@ -5,13 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
 import { Eye, EyeOff, Store, ArrowRight, Loader2 } from 'lucide-react'
 
-/* ============================================================
-   LOGIN PAGE
-   Layout  : split 2 kolom (brand panel + form)
-   Auth    : useAuthStore().login()
-   Redirect: /dashboard kalau user ada
-   ============================================================ */
-
 export default function LoginPage() {
   const router = useRouter()
   const login = useAuthStore((s) => s.login)
@@ -35,15 +28,11 @@ export default function LoginPage() {
         router.replace('/dashboard')
       }
     } catch {
-      // error sudah ditangani di store (dipetakan ke `error`)
     }
   }
 
   return (
     <div className="min-h-screen flex">
-      {/* ============================================================
-          LEFT — Brand Panel (desktop only)
-          ============================================================ */}
       <div
         className="hidden lg:flex flex-col justify-between w-1/2 p-12"
         style={{
@@ -73,7 +62,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Feature pills */}
         <div className="flex gap-4">
           {[
             { label: 'Transaksi', desc: 'POS terintegrasi' },
@@ -91,15 +79,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ============================================================
-          RIGHT — Login Form
-          ============================================================ */}
       <div
         className="flex-1 flex items-center justify-center p-6 lg:p-12"
         style={{ background: 'var(--background)' }}
       >
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-3 mb-8">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -131,7 +115,6 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4" noValidate>
-            {/* Username */}
             <div className="space-y-1.5">
               <label
                 htmlFor="username"
@@ -169,7 +152,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
               <label
                 htmlFor="password"
@@ -224,7 +206,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div
                 role="alert"
@@ -238,7 +219,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={!canSubmit}
@@ -264,7 +244,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Footer */}
           <p
             className="text-center text-xs mt-8"
             style={{ color: 'var(--muted-foreground)' }}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
 import { formatRupiah } from '@/lib/format'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -9,7 +10,7 @@ import { toast } from 'sonner'
 import {
   TrendingUp, ShoppingCart, Package, DollarSign,
   Loader2, Calendar, BarChart3, ArrowUpRight,
-  ArrowDownRight, Minus
+  ArrowDownRight
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area,
@@ -60,37 +61,43 @@ interface StockMovement {
   stockAfter: number
   userName: string
   notes: string | null
+  reason: 'EXPIRED' | 'DAMAGED' | 'LOST' | 'CORRECTION' | null
+  unitCost: number | null
   createdAt: string
 }
+
+const REASON_LABEL = {
+  EXPIRED: 'Kedaluwarsa',
+  DAMAGED: 'Rusak',
+  LOST: 'Hilang',
+  CORRECTION: 'Koreksi hitung',
+} as const
 
 type TabType = 'daily' | 'monthly' | 'products' | 'stock'
 
 export default function ReportsPage() {
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'ADMIN'
   const [activeTab, setActiveTab] = useState<TabType>('daily')
 
-  // Nilai stabil (dihitung sekali saat mount)
   const [today] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [monthValue, setMonthValue] = useState(() => {
     const n = new Date()
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
   })
 
-  // Daily
   const [dailyDate, setDailyDate] = useState(today)
   const [daily, setDaily] = useState<DailySummary | null>(null)
   const [loadingDaily, setLoadingDaily] = useState(false)
 
-  // Monthly
   const [monthly, setMonthly] = useState<MonthlyReport | null>(null)
   const [loadingMonthly, setLoadingMonthly] = useState(false)
 
-  // Top products
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [productDateFrom, setProductDateFrom] = useState('')
   const [productDateTo, setProductDateTo] = useState(today)
 
-  // Stock movements
   const [movements, setMovements] = useState<StockMovement[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
 
@@ -104,7 +111,7 @@ export default function ReportsPage() {
     } finally {
       setLoadingDaily(false)
     }
-  }, [setDaily, setLoadingDaily])
+  }, [])
 
   const fetchMonthly = useCallback(async (month: string) => {
     setLoadingMonthly(true)
@@ -117,7 +124,7 @@ export default function ReportsPage() {
     } finally {
       setLoadingMonthly(false)
     }
-  }, [setMonthly, setLoadingMonthly])
+  }, [])
 
   const fetchTopProducts = useCallback(async () => {
     setLoadingProducts(true)
@@ -132,7 +139,7 @@ export default function ReportsPage() {
     } finally {
       setLoadingProducts(false)
     }
-  }, [productDateFrom, productDateTo, setTopProducts, setLoadingProducts])
+  }, [productDateFrom, productDateTo])
 
   const fetchStock = useCallback(async () => {
     setLoadingStock(true)
@@ -144,9 +151,8 @@ export default function ReportsPage() {
     } finally {
       setLoadingStock(false)
     }
-  }, [setMovements, setLoadingStock])
+  }, [])
 
-  // Initial load
   useEffect(() => {
     const init = async () => { await fetchDaily(today) }
     init()
@@ -179,16 +185,17 @@ export default function ReportsPage() {
 
   const movementColor = (type: string) => {
     switch (type) {
-      case 'SALE': return { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Penjualan' }
-      case 'PURCHASE': return { color: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Pembelian' }
-      case 'ADJUSTMENT': return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Penyesuaian' }
+      case 'SALE_OUT': return { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Penjualan' }
+      case 'PURCHASE_IN': return { color: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Pembelian' }
+      case 'ADJUSTMENT_OUT': return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Stok keluar' }
+      case 'ADJUSTMENT_IN': return { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Stok masuk' }
+      case 'RETURN_IN': return { color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', label: 'Retur' }
       default: return { color: 'var(--muted-foreground)', bg: 'var(--muted)', label: type }
     }
   }
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
           Laporan
@@ -198,7 +205,6 @@ export default function ReportsPage() {
         </p>
       </div>
 
-      {/* Tabs */}
       <div
         className="flex gap-1 p-1 rounded-xl w-fit"
         style={{ background: 'var(--muted)' }}
@@ -219,10 +225,8 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* DAILY TAB */}
       {activeTab === 'daily' && (
         <div className="space-y-4">
-          {/* Date picker */}
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -273,10 +277,8 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* MONTHLY TAB */}
       {activeTab === 'monthly' && (
         <div className="space-y-4">
-          {/* Month picker */}
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -298,7 +300,6 @@ export default function ReportsPage() {
             </div>
           ) : monthly ? (
             <div className="space-y-4">
-              {/* Summary */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: 'Transaksi', value: `${monthly.totalTransactions}`, icon: ShoppingCart, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
@@ -317,7 +318,6 @@ export default function ReportsPage() {
                 ))}
               </div>
 
-              {/* Chart */}
               {monthly.daily.length > 0 ? (
                 <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                   <div className="flex items-center justify-between mb-4">
@@ -372,10 +372,8 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* PRODUCTS TAB */}
       {activeTab === 'products' && (
         <div className="space-y-4">
-          {/* Date filter */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
               <Calendar className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
@@ -414,7 +412,6 @@ export default function ReportsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Bar chart */}
               <div className="rounded-2xl p-5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <p className="text-sm font-semibold mb-4" style={{ color: 'var(--foreground)' }}>
                   Top {topProducts.length} Produk Terlaris
@@ -441,7 +438,6 @@ export default function ReportsPage() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Table */}
               <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -486,7 +482,6 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* STOCK TAB */}
       {activeTab === 'stock' && (
         <div className="space-y-3">
           {loadingStock ? (
@@ -503,33 +498,39 @@ export default function ReportsPage() {
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {movements.map((m) => {
                   const { color, bg, label } = movementColor(m.type)
-                  const isOut = m.type === 'SALE'
+                  const isOut = m.type === 'SALE_OUT' || m.type === 'ADJUSTMENT_OUT'
+                  const lossValue =
+                    isAdmin && m.type === 'ADJUSTMENT_OUT' && m.unitCost !== null
+                      ? m.unitCost * m.quantity
+                      : null
                   return (
-                    <div key={m.id} className="flex items-center justify-between px-4 py-3"
+                    <div key={m.id} className="flex items-center justify-between px-4 py-3 gap-3"
                       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--muted)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: bg }}>
                           {isOut
                             ? <ArrowDownRight className="w-4 h-4" style={{ color }} />
-                            : m.type === 'PURCHASE'
-                              ? <ArrowUpRight className="w-4 h-4" style={{ color }} />
-                              : <Minus className="w-4 h-4" style={{ color }} />
-                          }
+                            : <ArrowUpRight className="w-4 h-4" style={{ color }} />}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
                             {m.productName}
                           </p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color }}>
-                              {label}
+                              {label}{m.reason && ` · ${REASON_LABEL[m.reason]}`}
                             </span>
                             <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                               {m.userName} · {format(new Date(m.createdAt), 'd MMM, HH:mm', { locale: id })}
                             </span>
                           </div>
+                          {m.notes && (
+                            <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted-foreground)' }}>
+                              {m.notes}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -539,6 +540,11 @@ export default function ReportsPage() {
                         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
                           {m.stockBefore} → {m.stockAfter}
                         </p>
+                        {lossValue !== null && (
+                          <p className="text-xs" style={{ color: '#f59e0b' }}>
+                            {formatRupiah(Math.round(lossValue))}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )

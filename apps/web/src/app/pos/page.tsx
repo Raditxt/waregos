@@ -72,10 +72,7 @@ export default function PosPage() {
   const searchRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<NodeJS.Timeout | null>(null)
   const customerTimer = useRef<NodeJS.Timeout | null>(null)
-  // Kunci idempotency untuk checkout yang sedang berjalan, beserta "sidik jari"
-  // state saat kunci dibuat. Kunci di-generate sekali per upaya checkout, lalu
-  // di-reset setelah sukses. Kalau isi keranjang/metode/pelanggan berubah
-  // setelah error, fingerprint beda → kunci baru dibuat (bukan retry).
+
   const checkoutKeyRef = useRef<{ key: string; fingerprint: string } | null>(null)
 
   const totalAmount = cart.reduce((s, i) => s + i.sellPrice * i.quantity, 0)
@@ -85,7 +82,6 @@ export default function PosPage() {
     i => i.buyPrice !== null && i.sellPrice <= i.buyPrice
   )
 
-  // Search products
   const searchProducts = useCallback(async (q: string) => {
     if (!q.trim()) {
       setSearchResults([])
@@ -108,7 +104,6 @@ export default function PosPage() {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
   }, [searchQuery, searchProducts])
 
-  // Customer autocomplete
   useEffect(() => {
     if (paymentMethod !== 'DEBT' || customerName.length < 2) {
       const t = setTimeout(() => setCustomerSuggestions([]), 0)
@@ -165,11 +160,10 @@ export default function PosPage() {
     setCart(prev => prev.filter(i => i.productId !== productId))
   }
 
-  // Ganti metode bayar + reset state terkait (bukan via useEffect)
   const handleSelectPaymentMethod = (method: PaymentMethod) => {
     if (method === paymentMethod) return
     setPaymentMethod(method)
-    setQrisConfirmed(false)   // reset setiap ganti metode
+    setQrisConfirmed(false)   
   }
 
   const quickPay = (total: number): number[] => {
@@ -200,12 +194,6 @@ export default function PosPage() {
     }
 
     setIsCheckingOut(true)
-
-    // Fingerprint = ciri unik upaya checkout ini. Item di-sort by productId
-    // dulu supaya urutan tidak mempengaruhi hasil. Kalau fingerprint sama
-    // dengan attempt sebelumnya, pakai kunci lama → server mengenali sebagai
-    // replay. Kalau beda (user ubah keranjang/metode/pelanggan setelah error),
-    // buat kunci baru supaya tidak salah dianggap replay.
     const fingerprint = JSON.stringify([
       paymentMethod,
       customerName.trim(),
@@ -249,15 +237,9 @@ export default function PosPage() {
       setCustomerName('')
       setPaymentMethod('CASH')
       setQrisConfirmed(false)
-      // Reset HANYA setelah sukses → transaksi berikutnya dapat kunci baru.
       checkoutKeyRef.current = null
     } catch (err) {
       toast.error(getErrorMessage(err))
-      // Sengaja TIDAK reset checkoutKeyRef di sini.
-      // Kalau errornya karena network timeout dan server sebenarnya sudah
-      // memproses, user bisa tekan Bayar lagi dengan isi keranjang yang sama →
-      // server mengenali sebagai replay. Kalau isi berubah, fingerprint beda →
-      // kunci baru dibuat di percobaan berikutnya.
     } finally {
       setIsCheckingOut(false)
     }
@@ -266,10 +248,8 @@ export default function PosPage() {
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-7rem)]">
 
-      {/* LEFT — Search + Cart */}
       <div className="flex flex-col flex-1 min-w-0 gap-3">
 
-        {/* Last saved marker */}
         {lastSaved && (
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
@@ -280,7 +260,6 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* Search */}
         <div className="relative">
           <div
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
@@ -310,7 +289,6 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* Search results dropdown */}
           {searchResults.length > 0 && (
             <div
               className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20"
@@ -359,12 +337,10 @@ export default function PosPage() {
           )}
         </div>
 
-        {/* Cart */}
         <div
           className="flex-1 rounded-2xl overflow-hidden flex flex-col"
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
         >
-          {/* Cart header */}
           <div
             className="flex items-center justify-between px-4 py-3 shrink-0"
             style={{ borderBottom: '1px solid var(--border)' }}
@@ -401,7 +377,6 @@ export default function PosPage() {
             )}
           </div>
 
-          {/* Cart items */}
           <div className="flex-1 overflow-y-auto">
             {cart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
@@ -444,7 +419,6 @@ export default function PosPage() {
                         </p>
                       </div>
 
-                      {/* Qty control */}
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => updateQty(item.productId, -1)}
@@ -472,14 +446,12 @@ export default function PosPage() {
                         </button>
                       </div>
 
-                      {/* Subtotal */}
                       <div className="text-right shrink-0 min-w-20">
                         <p className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>
                           {formatRupiah(item.sellPrice * item.quantity)}
                         </p>
                       </div>
 
-                      {/* Remove */}
                       <button
                         onClick={() => removeFromCart(item.productId)}
                         className="p-1.5 rounded-lg transition-colors shrink-0"
@@ -504,7 +476,6 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* RIGHT — Payment Panel */}
       <div
         className="flex flex-col shrink-0 rounded-2xl overflow-hidden"
         style={{
@@ -513,7 +484,6 @@ export default function PosPage() {
           border: '1px solid var(--border)',
         }}
       >
-        {/* Total */}
         <div
           className="px-5 py-4 shrink-0"
           style={{
@@ -532,7 +502,6 @@ export default function PosPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {/* Payment method */}
           <div>
             <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted-foreground)' }}>
               METODE BAYAR
@@ -559,7 +528,6 @@ export default function PosPage() {
             </div>
           </div>
 
-          {/* CASH input */}
           {paymentMethod === 'CASH' && (
             <div className="space-y-3">
               <div>
@@ -589,7 +557,6 @@ export default function PosPage() {
                 </div>
               </div>
 
-              {/* Quick pay */}
               {totalAmount > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {quickPay(totalAmount).map(v => (
@@ -609,7 +576,6 @@ export default function PosPage() {
                 </div>
               )}
 
-              {/* Change */}
               {paidAmount && (
                 <div
                   className="flex items-center justify-between px-3 py-2.5 rounded-xl"
@@ -633,7 +599,6 @@ export default function PosPage() {
             </div>
           )}
 
-          {/* QRIS confirm */}
           {paymentMethod === 'QRIS' && (
             <div
               className="px-3 py-3 rounded-xl space-y-2"
@@ -659,7 +624,6 @@ export default function PosPage() {
             </div>
           )}
 
-          {/* DEBT customer */}
           {paymentMethod === 'DEBT' && (
             <div className="space-y-2 relative">
               <p className="text-xs font-semibold" style={{ color: 'var(--muted-foreground)' }}>
@@ -682,7 +646,6 @@ export default function PosPage() {
                 />
               </div>
 
-              {/* Autocomplete */}
               {customerSuggestions.length > 0 && (
                 <div
                   className="absolute left-0 right-0 rounded-xl overflow-hidden z-10"
@@ -725,7 +688,6 @@ export default function PosPage() {
           )}
         </div>
 
-        {/* Checkout button */}
         <div className="px-4 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
           {isMarginViolation && (
             <p className="text-xs text-center mb-2" style={{ color: 'var(--error)' }}>
@@ -760,7 +722,6 @@ export default function PosPage() {
         </div>
       </div>
 
-      {/* Receipt Dialog */}
       {receipt && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -772,7 +733,6 @@ export default function PosPage() {
             style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Receipt header */}
             <div
               className="px-6 py-5 text-center"
               style={{ background: 'linear-gradient(135deg, #f97316, #f59e0b)' }}
@@ -785,13 +745,11 @@ export default function PosPage() {
             </div>
 
             <div className="px-6 py-4 space-y-3">
-              {/* Time */}
               <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 <Clock className="w-3 h-3" />
                 {format(new Date(receipt.createdAt), 'd MMM yyyy, HH:mm:ss', { locale: id })}
               </div>
 
-              {/* Items */}
               <div className="space-y-2">
                 {receipt.items.map((item) => (
                   <div key={item.productId} className="flex justify-between text-sm">

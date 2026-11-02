@@ -1,77 +1,87 @@
-// ============================================
-// REPORTS ROUTE — Thin Controller
-// Only handles HTTP concerns, delegates to service
-// ============================================
-
 import { FastifyInstance } from 'fastify'
 import { ReportsService } from './reports.service'
-import { ok, notFound } from '../../shared/response'
+import { ok, validationError } from '../../shared/response'
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+function parseDate(value: string | undefined): Date | null {
+  if (value === undefined) return new Date()
+  if (!DATE_PATTERN.test(value)) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString().slice(0, 10) === value ? date : null
+}
+
+function parseLimit(value: string | undefined, fallback: number, max: number): number {
+  const n = Number.parseInt(value ?? '', 10)
+  if (!Number.isInteger(n) || n < 1) return fallback
+  return Math.min(n, max)
+}
 
 export async function reportsRoutes(app: FastifyInstance) {
   const service = new ReportsService(app.prisma)
 
-  // GET /api/reports/summary?date=2026-08-05
   app.get('/summary', {
     preHandler: [app.authenticate],
   }, async (request, reply) => {
     const { date } = request.query as { date?: string }
-    const target = date ? new Date(date) : new Date()
+    const target = parseDate(date)
+    if (!target) {
+      return reply.code(400).send(validationError('Tanggal harus berformat YYYY-MM-DD'))
+    }
     const data = await service.getDailySummary(target)
     return reply.send(ok(data))
   })
 
-  // GET /api/reports/closing?date=2026-08-05
   app.get('/closing', {
     preHandler: [app.authenticate],
   }, async (request, reply) => {
     const { date } = request.query as { date?: string }
-    const target = date ? new Date(date) : new Date()
+    const target = parseDate(date)
+    if (!target) {
+      return reply.code(400).send(validationError('Tanggal harus berformat YYYY-MM-DD'))
+    }
     const data = await service.getClosing(target)
     return reply.send(ok(data))
   })
 
-  // GET /api/reports/monthly?year=2026&month=8
   app.get('/monthly', {
     preHandler: [app.adminOnly],
   }, async (request, reply) => {
     const { year, month } = request.query as { year?: string; month?: string }
     const now = new Date()
-    const data = await service.getMonthly(
-      parseInt(year ?? String(now.getFullYear())),
-      parseInt(month ?? String(now.getMonth() + 1))
-    )
+    const y = Number.parseInt(year ?? String(now.getFullYear()), 10)
+    const m = Number.parseInt(month ?? String(now.getMonth() + 1), 10)
+    if (!Number.isInteger(y) || y < 2000 || y > 2100 || !Number.isInteger(m) || m < 1 || m > 12) {
+      return reply.code(400).send(validationError('Tahun atau bulan tidak valid'))
+    }
+    const data = await service.getMonthly(y, m)
     return reply.send(ok(data))
   })
 
-  // GET /api/reports/top-products
   app.get('/top-products', {
-    preHandler: [app.authenticate],
+    preHandler: [app.adminOnly],
   }, async (request, reply) => {
     const { limit, dateFrom, dateTo } = request.query as {
       limit?: string
       dateFrom?: string
       dateTo?: string
     }
-    const data = await service.getTopProducts(
-      parseInt(limit ?? '10'),
-      dateFrom,
-      dateTo
-    )
+    if ((dateFrom && !parseDate(dateFrom)) || (dateTo && !parseDate(dateTo))) {
+      return reply.code(400).send(validationError('Tanggal harus berformat YYYY-MM-DD'))
+    }
+    const data = await service.getTopProducts(parseLimit(limit, 10, 100), dateFrom, dateTo)
     return reply.send(ok(data))
   })
 
-  // GET /api/reports/stock-movements
   app.get('/stock-movements', {
-    preHandler: [app.authenticate],
+    preHandler: [app.adminOnly],
   }, async (request, reply) => {
     const { productId, limit } = request.query as {
       productId?: string
       limit?: string
     }
-    const data = await service.getStockMovements(
-      productId,
-      parseInt(limit ?? '50')
-    )
+    const data = await service.getStockMovements(productId, parseLimit(limit, 50, 200))
     return reply.send(ok(data))
   })
 }

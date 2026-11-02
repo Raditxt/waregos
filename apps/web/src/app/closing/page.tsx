@@ -55,8 +55,7 @@ export default function ClosingPage() {
   useEffect(() => {
     const init = async () => { await fetchClosing(today) }
     init()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  },)
 
   useEffect(() => {
     const run = async () => { await fetchClosing(selectedDate) }
@@ -109,7 +108,6 @@ export default function ClosingPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
@@ -119,7 +117,6 @@ export default function ClosingPage() {
             Rekap & tutup buku akhir hari
           </p>
         </div>
-        {/* Date picker */}
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-xl"
           style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -142,7 +139,6 @@ export default function ClosingPage() {
         </div>
       ) : data ? (
         <div className="space-y-4">
-          {/* Date label */}
           <div className="flex items-center gap-2" style={{ color: 'var(--muted-foreground)' }}>
             <Clock className="w-3.5 h-3.5" />
             <span className="text-sm">
@@ -150,7 +146,6 @@ export default function ClosingPage() {
             </span>
           </div>
 
-          {/* Summary Cards */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
             {summaryCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
               <div
@@ -173,7 +168,6 @@ export default function ClosingPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Payment breakdown */}
             <div
               className="rounded-2xl p-5"
               style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -216,7 +210,6 @@ export default function ClosingPage() {
               </div>
             </div>
 
-            {/* Cash reconciliation */}
             <div
               className="rounded-2xl p-5"
               style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
@@ -297,7 +290,6 @@ export default function ClosingPage() {
             </div>
           </div>
 
-          {/* Last transaction */}
           {data.lastTransaction && (
             <div
               className="rounded-2xl p-4 flex items-center justify-between"
@@ -320,7 +312,6 @@ export default function ClosingPage() {
             </div>
           )}
 
-          {/* Tutup buku */}
           <div
             className="rounded-2xl p-5"
             style={{

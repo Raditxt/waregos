@@ -34,6 +34,8 @@ import { purchasesRoutes } from './modules/stock/purchases.route';
 import { reportsRoutes } from './modules/reports/reports.route';
 import { debtRoutes } from './modules/debt/debt.route';
 import { activityRoutes } from './modules/audit/audit.route';
+import { stockRoutes } from './modules/stock/stock.route';
+
 
 const trustProxy: boolean | string[] =
   process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0
@@ -47,7 +49,6 @@ const app = Fastify({
 
 const start = async () => {
   try {
-    // Global error handler
     app.setErrorHandler(globalErrorHandler);
 
     // Plugins
@@ -71,6 +72,7 @@ const start = async () => {
     await app.register(reportsRoutes, { prefix: '/api/reports' });
     await app.register(debtRoutes, { prefix: '/api/debts' });
     await app.register(activityRoutes, { prefix: '/api/audit' });
+    await app.register(stockRoutes, { prefix: '/api/stock' });
 
     // Health check
     app.get('/health', async (request, reply) => {
@@ -100,9 +102,6 @@ const start = async () => {
     await app.listen({ port, host });
     logger.info(`🚀 Waregos API running at http://${host}:${port}`, 'Bootstrap');
 
-
-
-    // Railway menghentikan proses dengan SIGTERM; Ctrl+C di lokal adalah SIGINT
     const shutdown = async (signal: string) => {
       logger.info(`${signal} diterima, menutup server...`, 'Bootstrap');
       await app.close();

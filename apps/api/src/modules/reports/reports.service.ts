@@ -1,8 +1,3 @@
-// ============================================
-// REPORTS SERVICE — Single Responsibility
-// All reporting business logic in one place
-// ============================================
-
 import { PrismaClient, Prisma } from '@prisma/client'
 import {
   startOfDay,
@@ -149,13 +144,11 @@ export class ReportsService {
       userId: m.userId,
       userName: m.user.name,
       notes: m.notes,
+      reason: m.reason,
+      unitCost: m.unitCost !== null ? Number(m.unitCost) : null,
       createdAt: m.createdAt.toISOString(),
     }))
   }
-
-  // ============================================
-  // PRIVATE HELPERS
-  // ============================================
 
   private calculateSummary(transactions: TransactionForReport[], cancelled: number, date: Date) {
     const { totalRevenue, totalProfit, totalItems } = this.calculateTotals(transactions)
