@@ -42,16 +42,6 @@ ehthumbs.db
 *.swp
 *.swo
 
-# Flutter / Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-flutter_*.png
-
 # Turbo
 .turbo/
 
