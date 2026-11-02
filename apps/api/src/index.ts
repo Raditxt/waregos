@@ -23,7 +23,6 @@ import jwtPlugin from './plugins/jwt';
 import corsPlugin from './plugins/cors';
 import { globalErrorHandler } from './shared/error-handler';
 import { logger } from './shared/logger';
-import { Bonjour } from 'bonjour-service';
 
 // Routes
 import { authRoutes } from './modules/auth/auth.route';
@@ -103,22 +102,8 @@ const start = async () => {
     await app.listen({ port, host });
     logger.info(`🚀 Waregos API running at http://${host}:${port}`, 'Bootstrap');
 
-    let bonjour: Bonjour | null = null;
-    if (!isProd) {
-      bonjour = new Bonjour();
-      bonjour.publish({
-        name: 'Waregos API',
-        type: 'http',
-        port: port,
-        txt: { version: '1.0.0' },
-      });
-      logger.info('📡 mDNS broadcasting as waregos-api.local', 'Bootstrap');
-    }
-
     const shutdown = async (signal: string) => {
       logger.info(`${signal} diterima, menutup server...`, 'Bootstrap');
-      bonjour?.unpublishAll();
-      bonjour?.destroy();
       await app.close();
       process.exit(0);
     };

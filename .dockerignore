@@ -6,7 +6,6 @@
 **/.env
 **/.env.*
 !**/.env.example
-apps/mobile
 apps/web/*
 !apps/web/package.json
 docs
