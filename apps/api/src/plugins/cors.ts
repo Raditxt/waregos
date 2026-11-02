@@ -11,7 +11,6 @@ async function corsPlugin(app: FastifyInstance) {
 
   app.register(cors, {
     origin: (origin, cb) => {
-      // Izinkan request tanpa origin (misal: curl, Postman, atau native mobile app)
       if (!origin) return cb(null, true)
 
       // Hanya izinkan origin yang terdaftar

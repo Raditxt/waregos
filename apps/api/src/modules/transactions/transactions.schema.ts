@@ -13,7 +13,6 @@ export const createTransactionSchema = z.object({
   paidAmount: z.number().min(0, { message: 'Jumlah bayar tidak boleh negatif' }),
   customerName: z.string().optional(),
   notes: z.string().optional(),
-  // Dibuat klien per upaya checkout. Opsional supaya APK lama tetap jalan.
   idempotencyKey: z.string().uuid({ message: 'Kunci transaksi tidak valid' }).optional(),
 })
 

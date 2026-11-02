@@ -23,7 +23,6 @@ import jwtPlugin from './plugins/jwt';
 import corsPlugin from './plugins/cors';
 import { globalErrorHandler } from './shared/error-handler';
 import { logger } from './shared/logger';
-import { Bonjour } from 'bonjour-service';
 
 // Routes
 import { authRoutes } from './modules/auth/auth.route';
@@ -36,10 +35,6 @@ import { reportsRoutes } from './modules/reports/reports.route';
 import { debtRoutes } from './modules/debt/debt.route';
 import { activityRoutes } from './modules/audit/audit.route';
 
-// Railway membuang/merutekan ulang X-Forwarded-For dari edge proxy-nya.
-// Alih-alih memercayai semua proxy (true) yang rawan X-Forwarded-For spoofing,
-// kita hanya memercayai rentang CIDR spesifik yang diketahui.
-// 152.233.0.0/16 ditambahkan berdasarkan observasi IP hop di log Railway.
 const trustProxy: boolean | string[] =
   process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0
     ? ['127.0.0.1', '::1', '10.0.0.0/8', '100.0.0.0/8', '152.233.0.0/16', '172.16.0.0/12', '192.168.0.0/16']
@@ -105,24 +100,11 @@ const start = async () => {
     await app.listen({ port, host });
     logger.info(`🚀 Waregos API running at http://${host}:${port}`, 'Bootstrap');
 
-    // mDNS hanya berguna di jaringan lokal (dev), tidak di cloud
-    let bonjour: Bonjour | null = null;
-    if (!isProd) {
-      bonjour = new Bonjour();
-      bonjour.publish({
-        name: 'Waregos API',
-        type: 'http',
-        port: port,
-        txt: { version: '1.0.0' },
-      });
-      logger.info('📡 mDNS broadcasting as waregos-api.local', 'Bootstrap');
-    }
+
 
     // Railway menghentikan proses dengan SIGTERM; Ctrl+C di lokal adalah SIGINT
     const shutdown = async (signal: string) => {
       logger.info(`${signal} diterima, menutup server...`, 'Bootstrap');
-      bonjour?.unpublishAll();
-      bonjour?.destroy();
       await app.close();
       process.exit(0);
     };
