@@ -2,13 +2,32 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { CreateProductInput, UpdateProductInput, ProductQueryInput } from './products.schema';
 import { ProductWithRelations } from '../../shared/prisma-types';
 import { parsePagination, buildMeta } from '../../shared/pagination';
+import { shopDateString } from '@waregos/utils';
+import {
+  Allocation,
+  ExpiryStatus,
+  PurchaseLine,
+  allocateLayers,
+  layerStatus,
+  summarizeLayers,
+} from '../../shared/expiry-layers';
 
-// CUSTOM ERROR
 export class ProductNotFoundError extends Error {
   constructor(message = 'Produk tidak ditemukan') {
     super(message);
     this.name = 'ProductNotFoundError';
   }
+}
+
+interface ExpiringRow {
+  id: string;
+  name: string;
+  stock: number;
+  unit: string;
+  quantity: number; 
+  expiryDate: string;
+  daysLeft: number;
+  status: ExpiryStatus;
 }
 
 export class ProductsService {
@@ -17,7 +36,6 @@ export class ProductsService {
     private readonly role?: string
   ) {}
 
-  // FIND ALL
   async findAll(query: ProductQueryInput) {
     const { page, limit, skip } = parsePagination(query);
 
@@ -52,13 +70,14 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
+    const layers = await this.loadLayers(data);
+
     return {
-      data: data.map((p) => this.formatProduct(p)),
+      data: data.map((p) => this.formatProduct(p, layers.get(p.id))),
       meta: buildMeta(total, page, limit),
     };
   }
 
-  // FIND BY ID
   async findById(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -68,10 +87,10 @@ export class ProductsService {
       },
     });
     if (!product) return null;
-    return this.formatProduct(product);
+    const layers = await this.loadLayers([product]);
+    return this.formatProduct(product, layers.get(product.id));
   }
 
-  // FIND BY BARCODE
   async findByBarcode(barcode: string) {
     const product = await this.prisma.product.findUnique({
       where: { barcode },
@@ -81,10 +100,10 @@ export class ProductsService {
       },
     });
     if (!product) return null;
-    return this.formatProduct(product);
+    const layers = await this.loadLayers([product]);
+    return this.formatProduct(product, layers.get(product.id));
   }
 
-  // CREATE PRODUCT
   async create(input: CreateProductInput) {
     const product = await this.prisma.product.create({
       data: {
@@ -108,8 +127,6 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // UPDATE PRODUCT
-  // Stok dan harga beli sengaja tidak bisa diubah di sini (lihat updateProductSchema).
   async update(id: string, input: UpdateProductInput) {
     const existing = await this.prisma.product.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new ProductNotFoundError();
@@ -140,7 +157,6 @@ export class ProductsService {
     return this.formatProduct(product);
   }
 
-  // SOFT DELETE
   async delete(id: string): Promise<void> {
     const existing = await this.prisma.product.findUnique({ where: { id } });
     if (!existing) throw new ProductNotFoundError();
@@ -151,7 +167,6 @@ export class ProductsService {
     });
   }
 
-  // LOW STOCK REPORT
   async getLowStock() {
     const products = await this.prisma.product.findMany({
       where: {
@@ -171,39 +186,44 @@ export class ProductsService {
     }));
   }
 
-  // EXPIRING SOON REPORT 
-  async getExpiringSoon() {
+  async getExpiringSoon(): Promise<ExpiringRow[]> {
     const products = await this.prisma.product.findMany({
-      where: { isActive: true, expiryDate: { not: null } },
+      where: { isActive: true, stock: { gt: 0 } },
       include: { unit: { select: { symbol: true } } },
-      orderBy: { expiryDate: 'asc' },
     });
 
-    const now = new Date();
-    return products
-      .map((p) => {
-        const expiry = new Date(p.expiryDate!);
-        const alertDate = new Date(expiry);
-        alertDate.setDate(alertDate.getDate() - (p.expiryAlertDays ?? 7));
-        const daysLeft = Math.ceil(
-          (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const status =
-          now > expiry ? 'expired' : now >= alertDate ? 'expiring_soon' : 'ok';
-        return {
-          id: p.id,
-          name: p.name,
-          stock: p.stock,
-          unit: p.unit.symbol,
-          expiryDate: p.expiryDate!.toISOString(),
-          daysLeft,
-          status,
-        };
-      })
-      .filter((p) => p.status !== 'ok');
+    const layers = await this.loadLayers(products);
+    const today = shopDateString(new Date());
+    const rows: ExpiringRow[] = [];
+
+    for (const p of products) {
+      const alertDays = p.expiryAlertDays ?? 7;
+      const alloc = layers.get(p.id);
+      const dated = alloc ? alloc.layers.some((l) => l.expiryDate !== null) : false;
+      const base = { id: p.id, name: p.name, stock: p.stock, unit: p.unit.symbol };
+
+      if (alloc && dated) {
+        for (const l of summarizeLayers(alloc.layers, today, alertDays).layers) {
+          if (l.expiryDate === null || l.status === null || l.status === 'ok') continue;
+          rows.push({
+            ...base,
+            quantity: l.quantity,
+            expiryDate: l.expiryDate,
+            daysLeft: l.daysLeft ?? 0,
+            status: l.status,
+          });
+        }
+      } else if (p.expiryDate) {
+        // Cadangan untuk data lama yang belum punya lapisan bertanggal
+        const expiryDate = p.expiryDate.toISOString().slice(0, 10);
+        const { status, daysLeft } = layerStatus(expiryDate, today, alertDays);
+        if (status !== 'ok') rows.push({ ...base, quantity: p.stock, expiryDate, daysLeft, status });
+      }
+    }
+
+    return rows.sort((a, b) => a.daysLeft - b.daysLeft);
   }
 
-  // DEAD STOCK REPORT
   async getDeadStock(dayThreshold = 30) {
     const thresholdDate = new Date();
     thresholdDate.setDate(thresholdDate.getDate() - dayThreshold);
@@ -251,12 +271,55 @@ export class ProductsService {
     });
   }
 
-  // FORMAT RESPONSE
-  private formatProduct(p: ProductWithRelations) {
-    const expiryStatus = this.calculateExpiryStatus(
-      p.expiryDate,
-      p.expiryAlertDays
-    );
+  private async loadLayers(products: { id: string; stock: number }[]) {
+    const result = new Map<string, Allocation>();
+    const withStock = products.filter((p) => p.stock > 0);
+    if (withStock.length === 0) return result;
+
+    const lines = await this.prisma.purchaseItem.findMany({
+      where: {
+        productId: { in: withStock.map((p) => p.id) },
+        purchase: { status: 'RECEIVED' },
+      },
+      orderBy: [
+        { purchase: { purchasedAt: 'desc' } },
+        { expiryDate: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ],
+      select: { productId: true, quantity: true, expiryDate: true },
+    });
+
+    const byProduct = new Map<string, PurchaseLine[]>();
+    for (const l of lines) {
+      const list = byProduct.get(l.productId) ?? [];
+      list.push({
+        quantity: l.quantity,
+        expiryDate: l.expiryDate ? l.expiryDate.toISOString().slice(0, 10) : null,
+      });
+      byProduct.set(l.productId, list);
+    }
+
+    for (const p of withStock) {
+      result.set(p.id, allocateLayers(p.stock, byProduct.get(p.id) ?? []));
+    }
+    return result;
+  }
+
+  private formatProduct(p: ProductWithRelations, alloc?: Allocation) {
+    const alertDays = p.expiryAlertDays ?? 7;
+    const summary = alloc
+      ? summarizeLayers(alloc.layers, shopDateString(new Date()), alertDays)
+      : null;
+    const fromLayers = summary !== null && summary.nearestDate !== null;
+
+    const expiryDate = fromLayers
+      ? summary.nearestDate
+      : p.expiryDate
+        ? p.expiryDate.toISOString()
+        : null;
+    const expiryStatus = fromLayers
+      ? summary.status
+      : this.calculateExpiryStatus(p.expiryDate, p.expiryAlertDays);
 
     return {
       id: p.id,
@@ -277,16 +340,19 @@ export class ProductsService {
       sellPrice: Number(p.sellPrice),
       stock: p.stock,
       minStock: p.minStock,
-      expiryDate: p.expiryDate ? p.expiryDate.toISOString() : null,
-      expiryAlertDays: p.expiryAlertDays ?? 7,
+      expiryDate,
+      expiryAlertDays: alertDays,
       expiryStatus,
+      expiryLayers: summary ? summary.layers : [],
+      expiredQuantity: summary ? summary.expiredQuantity : 0,
+      expiringSoonQuantity: summary ? summary.expiringSoonQuantity : 0,
+      untrackedQuantity: alloc ? alloc.untracked : p.stock,
       isActive: p.isActive,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     };
   }
 
-  // HELPER: EXPIRY STATUS
   private calculateExpiryStatus(
     expiryDate: Date | null,
     alertDays: number | null
