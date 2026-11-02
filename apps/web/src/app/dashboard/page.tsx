@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { AxiosResponse } from 'axios'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+import { toast } from 'sonner'
 import {
   TrendingUp, ShoppingCart, Package, DollarSign,
   Loader2, AlertTriangle, BarChart3, ArrowUpRight,
@@ -35,6 +35,7 @@ interface ExpiringProduct {
   name: string
   stock: number
   unit: string
+  quantity: number
   expiryDate: string
   daysLeft: number
   status: string
@@ -68,25 +69,20 @@ export default function DashboardPage() {
     else setLoading(true)
 
     try {
-      const requests: Promise<AxiosResponse>[] = [
+      const [summaryRes, expiringRes, deadRes, monthlyRes] = await Promise.all([
         api.get(`/reports/summary?date=${today}`),
         api.get('/products/expiring-soon'),
-        api.get('/products/dead-stock'),
-      ]
-      if (isAdmin) {
-        requests.push(
-          api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
-        )
-      }
-
-      const results = await Promise.all(requests)
-      setSummary(results[0].data.data)
-      setExpiring(results[1].data.data ?? [])
-      setDeadStock(results[2].data.data ?? [])
-      if (isAdmin && results[3]) {
-        setMonthly(results[3].data.data.daily ?? [])
-      }
+        isAdmin ? api.get('/products/dead-stock') : Promise.resolve(null),
+        isAdmin
+          ? api.get(`/reports/monthly?year=${now.getFullYear()}&month=${now.getMonth() + 1}`)
+          : Promise.resolve(null),
+      ])
+      setSummary(summaryRes.data.data)
+      setExpiring(expiringRes.data.data ?? [])
+      setDeadStock(deadRes?.data.data ?? [])
+      setMonthly(monthlyRes?.data.data.daily ?? [])
     } catch {
+      toast.error('Gagal memuat dashboard')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -96,7 +92,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const init = async () => { await fetchData() }
     init()
-  },)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin])
 
   if (loading) {
     return (
@@ -253,7 +250,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {expiring.slice(0, 4).map((p) => (
                 <div
-                  key={p.id}
+                  key={`${p.id}-${p.expiryDate}`}
                   className="flex items-center justify-between py-2 rounded-xl px-3 transition-colors"
                   style={{ background: 'var(--muted)' }}
                 >
@@ -262,7 +259,8 @@ export default function DashboardPage() {
                       {p.name}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                      Stok: {p.stock} {p.unit}
+                      {p.quantity} {p.unit}
+                      {p.stock !== p.quantity && ` dari ${p.stock}`}
                     </p>
                   </div>
                   <div className="text-right">
@@ -275,10 +273,14 @@ export default function DashboardPage() {
                         color: p.status === 'expired' ? '#ef4444' : '#f59e0b',
                       }}
                     >
-                      {p.status === 'expired' ? 'Kadaluarsa' : `${p.daysLeft} hari lagi`}
+                      {p.status === 'expired'
+                        ? 'Kadaluarsa'
+                        : p.daysLeft === 0
+                          ? 'Hari ini'
+                          : `${p.daysLeft} hari lagi`}
                     </span>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
-                      {format(new Date(p.expiryDate), 'd MMM yyyy', { locale: id })}
+                      {format(new Date(`${p.expiryDate}T00:00:00`), 'd MMM yyyy', { locale: id })}
                     </p>
                   </div>
                 </div>
