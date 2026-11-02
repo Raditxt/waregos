@@ -4,18 +4,23 @@ import { ok } from '../../shared/response'
 
 const ACTION_LABELS: Record<string, string> = {
   LOGIN: 'Login',
+  LOGIN_FAILED: 'Login Gagal',
   LOGOUT: 'Logout',
   CHANGE_PASSWORD: 'Ganti Password',
   RESET_PASSWORD: 'Reset Password',
   CREATE_PRODUCT: 'Tambah Produk',
   UPDATE_PRODUCT: 'Edit Produk',
   DELETE_PRODUCT: 'Hapus Produk',
+  CREATE_CATEGORY: 'Tambah Kategori',
+  UPDATE_CATEGORY: 'Edit Kategori',
+  DELETE_CATEGORY: 'Hapus Kategori',
   CREATE_TRANSACTION: 'Buat Transaksi',
   CANCEL_TRANSACTION: 'Cancel Transaksi',
   CREATE_PURCHASE: 'Catat Pembelian',
   CREATE_USER: 'Tambah User',
   UPDATE_USER: 'Update User',
   ADJUST_STOCK: 'Penyesuaian Stok',
+  CORRECT_COST: 'Koreksi Modal',
 }
 
 export async function activityRoutes(app: FastifyInstance) {

@@ -144,6 +144,8 @@ export class ReportsService {
       userId: m.userId,
       userName: m.user.name,
       notes: m.notes,
+      reason: m.reason,
+      unitCost: m.unitCost !== null ? Number(m.unitCost) : null,
       createdAt: m.createdAt.toISOString(),
     }))
   }

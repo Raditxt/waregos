@@ -172,7 +172,7 @@ export async function productsRoutes(app: FastifyInstance) {
 
       try {
         const service = new ProductsService(app.prisma, 'ADMIN');
-        const product = await service.update(id, result.data, payload.sub);
+        const product = await service.update(id, result.data);
 
         // Log aktivitas
         await activityService.log({

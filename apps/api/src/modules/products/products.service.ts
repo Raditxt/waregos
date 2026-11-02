@@ -109,8 +109,9 @@ export class ProductsService {
   }
 
   // UPDATE PRODUCT
-  async update(id: string, input: UpdateProductInput, userId?: string) {
-    const existing = await this.prisma.product.findUnique({ where: { id } });
+  // Stok dan harga beli sengaja tidak bisa diubah di sini (lihat updateProductSchema).
+  async update(id: string, input: UpdateProductInput) {
+    const existing = await this.prisma.product.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new ProductNotFoundError();
 
     const product = await this.prisma.product.update({
@@ -121,9 +122,7 @@ export class ProductsService {
         ...(input.barcode !== undefined && { barcode: input.barcode }),
         ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
         ...(input.unitId !== undefined && { unitId: input.unitId }),
-        ...(input.buyPrice !== undefined && { buyPrice: input.buyPrice }),
         ...(input.sellPrice !== undefined && { sellPrice: input.sellPrice }),
-        ...(input.stock !== undefined && { stock: input.stock }),
         ...(input.minStock !== undefined && { minStock: input.minStock }),
         ...(input.expiryDate !== undefined && {
           expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
@@ -137,22 +136,6 @@ export class ProductsService {
         unit: { select: { id: true, name: true, symbol: true } },
       },
     });
-    if (
-      userId &&
-      input.buyPrice !== undefined &&
-      input.buyPrice !== null &&
-      existing.buyPrice !== null &&
-      Number(input.buyPrice) !== Number(existing.buyPrice)
-    ) {
-      await this.prisma.priceHistory.create({
-        data: {
-          productId: id,
-          oldPrice: existing.buyPrice,
-          newPrice: input.buyPrice,
-          changedBy: userId,
-        },
-      });
-    }
 
     return this.formatProduct(product);
   }

@@ -18,6 +18,7 @@ export type ActivityAction =
   | 'CREATE_USER'
   | 'UPDATE_USER'
   | 'ADJUST_STOCK'
+  | 'CORRECT_COST'
   | 'CREATE_CATEGORY'
   | 'UPDATE_CATEGORY'
   | 'DELETE_CATEGORY';
