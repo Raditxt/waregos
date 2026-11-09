@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./**/.env)",
+      "Bash(git push:*)",
+      "PowerShell(git push:*)",
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(railway:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(ssh:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-guardrails.mjs\"",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}
