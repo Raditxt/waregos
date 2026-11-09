@@ -49,3 +49,5 @@ ehthumbs.db
 coverage/
 .nyc_output/
 .env.supabase
+
+.claude/settings.local.json
