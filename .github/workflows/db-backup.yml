@@ -60,5 +60,5 @@ jobs:
         with:
           name: ${{ steps.dump.outputs.file }}
           path: ${{ steps.dump.outputs.file }}
-          retention-days: 90
+          retention-days: 7
           if-no-files-found: error
