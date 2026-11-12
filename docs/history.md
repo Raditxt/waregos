@@ -69,5 +69,21 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
 - Hostinger dropped: its cheap price needs 12–24 months paid upfront.
 - Considered skipping the VPS (wasteful for one project). Decided to share one VPS with TahuHak instead, which makes it cheaper per project than Railway.
 - TahuHak's own review showed a 2 GB plan cannot hold both projects safely. Chose Biznet Gio NEO Lite MS 4.2 (2 vCPU, 4 GB, 60 GB, Rp154.290/month incl. VAT). ADR 0005 revised.
-- Cost split: the shop pays the Waregos half plus its domain; the TahuHak half is personal.
+- Cost is split between the shop and the other project; details are kept outside the repo.
 - No Railway bridge: if the move slips past ~2026-11-14, only catalog entry pauses.
+
+## 2026-11-10: server hardening, repo goes public
+
+- VPS active since 2026-11-09 (Ubuntu 24.04), shared with TahuHak.
+- Hardening done: UFW allowing SSH only and enabled at boot, key-only SSH with root login disabled, fail2ban, unattended-upgrades, 2 GB swap, Docker + Compose from Docker's official repository. Compose stack, migrations, DB roles, tunnel and backups are still to do.
+- The repo was made public after a `gitleaks` scan of the full history came back clean. From now on no server details (IP, usernames, key names) and no cost split go into the repo.
+- README rewritten (UTF-8, WIP status, fixed links).
+- Backup workflow artifact retention reduced to 7 days (`9a554d6`); the artifacts are `age`-encrypted, but a public repo should keep as few as possible.
+
+## 2026-11-11: domain and migration plan
+
+- Bought `waregos.com` at Cloudflare Registrar (DNSSEC, WHOIS privacy, auto-renew on). Why `.com`: it renews at the same price every year ($11.17); the cheaper `.app` and `.org` offers were first-year promos only.
+- Subdomains: `api.` for the API through Cloudflare Tunnel, `app.` for the web (Cloudflare Pages custom domain, attached at cutover), root and `www.` for an explainer website later, `demo.` for a demo system after v1. No DNS record points at the server's IP. ADR 0005 revised.
+- Migration flow: Compose stack on the VPS → dump `public` from Supabase and restore → API live on `api.waregos.com` → backups to R2 with alarm and restore drill → cutover (web on `app.waregos.com`, `CORS_ORIGINS=https://app.waregos.com`, `waregos.pages.dev` kept until stable).
+- Extra tickets: `.max()` limits on Zod string/array inputs and an explicit Fastify `bodyLimit`.
+- Cutover is gated by working backups and a passed restore drill, not by the domain. Target v1: mid-January 2027, at about 5 hours of work per week. Dates per stage in `docs/roadmap.md`.

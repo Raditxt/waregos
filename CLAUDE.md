@@ -14,7 +14,8 @@ Production is touched only by Raditya, by hand. These rules override any task in
 
 - Never `git push`, merge into `main`, or deploy anything.
 - `main` deploys the production web (Cloudflare Pages) automatically whenever auto-deploy is on, and `main` can be ahead of the production API. Never assume `main` equals production.
-- Never run commands that reach production or infrastructure: `railway`, `gh workflow run`, `ssh`, or any database connection other than localhost.
+- Never run commands that reach production or infrastructure: `railway`, `gh workflow run`, `ssh`, `scp`, `cloudflared tunnel`, `wrangler`, `rclone` against a real remote, `docker` against a remote host or context, or any database connection other than localhost.
+- The repo is public. Never write server details (IP addresses, usernames, key names, hostnames) or the cost split into the repo.
 - Prisma only against localhost. Before any `prisma migrate`, `db:deploy` or `db:seed`, read the `Datasource` line Prisma prints; if it is not `localhost:5432`, stop and report.
 - Never read or write `.env` files. `.env.example` files are fine.
 - Never put test data into production. Test locally.
@@ -23,12 +24,15 @@ Production is touched only by Raditya, by hand. These rules override any task in
 
 ## Current state (read before planning)
 
-`main` is ahead of production. As of 2026-11-02:
+`main` is ahead of production. As of 2026-11-12:
 
 - Production web (Cloudflare Pages) is pinned to the pre-restock deployment `922097cf` (commit `eb02d31`). Automatic production deployments are **off**. Never suggest turning them back on before the VPS cutover.
 - Production API (Railway) runs the pre-restock code. `POST /api/stock/adjustments` returns 404 there.
 - Production database (Supabase) already has all 14 migrations, including the restock-policy columns.
-- Until the VPS cutover, production may only receive catalog data (categories and products). No opening stock, purchases, transactions or debts.
+- Until the VPS cutover, production may only receive catalog data (categories and products). No opening stock, purchases, transactions or debts. Railway ends around 2026-11-14 and is not paid, so catalog entry stops until cutover.
+- VPS (shared with TahuHak) is running and hardened (2026-11-10). Compose stack, migrations, DB roles, tunnel and backups are not set up yet. Cutover is gated by working backups and a restore drill.
+- Domain `waregos.com` is bought (2026-11-11). `api.` = API via Cloudflare Tunnel, `app.` = web (attached at cutover). No DNS record points at the server IP. See ADR 0005.
+- VPS migration work happens on branch `chore/vps-migration`; tickets in `.scratch/vps-migration/`.
 
 Roadmap and next steps: `docs/roadmap.md`. What happened so far and why: `docs/history.md`. Final decisions: `docs/adr/`. Update `docs/roadmap.md` when a stage is finished.
 

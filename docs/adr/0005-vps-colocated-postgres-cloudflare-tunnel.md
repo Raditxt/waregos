@@ -1,6 +1,6 @@
 # 5. VPS with co-located Postgres behind Cloudflare Tunnel
 
-Status: accepted (2026-11-02), revised 2026-11-09 (provider and size). Not yet implemented.
+Status: accepted (2026-11-02), revised 2026-11-09 (provider and size), revised 2026-11-11 (domain and subdomains). Implementation in progress.
 
 ## Context
 
@@ -16,7 +16,14 @@ Status: accepted (2026-11-02), revised 2026-11-09 (provider and size). Not yet i
   - Hostinger KVM 1 was dropped because its low price requires paying 12–24 months upfront.
   - A 2 GB plan was rejected: OS + Waregos + TahuHak under load was estimated at 1.2–2.35 GB, leaving no room for `pg_dump`, image pulls or upgrades.
 - Waregos runs in its own Docker Compose project: Postgres (internal Docker network only), the API, and `cloudflared`.
-- No inbound web ports. Cloudflare Tunnel publishes `api.<domain>`; HTTPS is handled by Cloudflare. Only SSH (key-only) is reachable.
+- No inbound web ports. Cloudflare Tunnel publishes `api.waregos.com`; HTTPS is handled by Cloudflare. Only SSH (key-only) is reachable.
+- Domain: `waregos.com`, registered at Cloudflare Registrar (DNSSEC on, WHOIS privacy, auto-renew on). Subdomains:
+  - `api.` — the API, through Cloudflare Tunnel.
+  - `app.` — the web, as a Cloudflare Pages custom domain, attached at cutover.
+  - root and `www.` — an explainer website, later.
+  - `demo.` — a demo system, after v1.
+- No DNS record ever points at the server's IP address. Everything public goes through the tunnel or Cloudflare Pages.
+- CORS at cutover: `CORS_ORIGINS=https://app.waregos.com`, with `https://waregos.pages.dev` kept in the list until the new domain is stable.
 - Web stays on Cloudflare Pages.
 - Database roles stay as today: owner (migrations), `waregos_app` (DML only), read-only backup role.
 - Backups every 6 hours, `age`-encrypted, shipped off the server (Cloudflare R2 by default), with an alarm when a run is missed, and a periodic restore drill. The provider's snapshots are only an extra layer.
@@ -30,5 +37,5 @@ Status: accepted (2026-11-02), revised 2026-11-09 (provider and size). Not yet i
 - Losing the VPS without a working backup means losing data, so backup alerts and restore drills are mandatory before go-live.
 - A problem in TahuHak can affect the shop; memory limits and separate databases contain most of it.
 - Trust-proxy settings in `apps/api/src/index.ts` were made for Railway and must be redone for the tunnel; client-IP and rate-limit tests must be repeated.
-- Cost: the shop pays the Waregos half (about Rp77.000/month incl. VAT) plus the domain; the TahuHak half is paid personally.
+- Cost: split between the shop and the other project; the details are kept outside the repo.
 - Moving providers later is a rebuild plus restore, not a rewrite.
