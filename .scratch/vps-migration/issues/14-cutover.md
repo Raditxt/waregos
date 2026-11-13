@@ -3,7 +3,7 @@
 Status: ready-for-human
 Type: task
 Blocked by: 12, 13, 07 (disk check live), `.scratch/api-hardening/` 01 and 02
-Stage: 6
+Stage: 6 (8–14 Dec 2026)
 ADR: 0005, 0006
 
 ## Steps
@@ -17,6 +17,7 @@ As in `docs/roadmap.md` stage 6:
 
 ## Acceptance
 
+- [ ] ADR 0008 verification repeated right before cutover: no `ports:` on `api`/`db` in `docker compose config`, nothing on 3001/5432 in `ss -tlnp`, only Waregos containers on the internal network.
 - [ ] Admin and cashier flows work from `app.waregos.com`; cashier sees no cost data.
 - [ ] Roadmap and `CLAUDE.md` "Current state" updated.
 

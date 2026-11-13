@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: task
-Blocked by: 02
+Blocked by: —
 Stage: 2
 ADR: 0006, 0008
 
@@ -15,7 +15,8 @@ Create `deploy/` (first files there; allowed from this ticket on).
   - `api`: `ghcr.io/<owner>/<image>:${API_IMAGE_TAG}`, **no published port**, `mem_limit` 384 MB, `NODE_OPTIONS=--max-old-space-size=256`, `TRUST_PROXY_CIDRS=10.89.10.0/24`, `DATABASE_URL` as `waregos_app`, healthcheck on `/health` (as in the rehearsal file).
   - `cloudflared`: remotely-managed tunnel, token from env, `mem_limit` 128 MB.
   - `migrate` under profile `ops`: same API image, `prisma migrate deploy` as `waregos_owner`. No seed.
-  - Network with fixed subnet `10.89.10.0/24`.
+  - Network with fixed subnet `10.89.10.0/24`, joined only by `db`, `api`, `backup`, `cloudflared` (ADR 0008 invariant 2).
+  - `TRUST_PROXY_CIDRS` is set already; the current API image ignores it until ticket 02 lands, so the stack can be built and rehearsed before 02.
   - **No `logging:` key** (the daemon config handles it).
 - `deploy/.env.example`: every variable with a placeholder and an Indonesian comment, including `API_IMAGE_TAG` with a commented "previous tag" line.
 - `deploy/sql/bootstrap-roles.sql`: roles `waregos_owner`, `waregos_app`, `waregos_backup`, **no passwords** (set with `\password` by hand); `waregos_owner` owns the database/schema; `waregos_backup` gets `USAGE` on schema + `SELECT` on tables and sequences; `ALTER DEFAULT PRIVILEGES FOR ROLE waregos_owner` for app (DML on tables, usage on sequences) and backup (select).

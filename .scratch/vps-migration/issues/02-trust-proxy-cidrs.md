@@ -5,6 +5,7 @@ Type: task
 Blocked by: —
 Stage: 4 (code merged to `main` before the stage-4 image is built)
 ADR: 0008
+Branch: shared with `.scratch/api-hardening/` 01–03 (one PR, separate commits, `/tdd`)
 
 ## What
 

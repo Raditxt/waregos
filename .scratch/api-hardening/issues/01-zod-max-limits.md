@@ -1,19 +1,23 @@
-# 01 — `.max()` limits on Zod inputs
+# 01 — `.max()` limits on login body and item arrays
 
 Status: ready-for-agent
 Type: task
 Blocked by: —
 Gate: before cutover (vps-migration 14)
+Branch: shared with vps-migration 02 and api-hardening 02/03 (one PR, separate commits, `/tdd`)
 
-## What
+## Scope (narrowed in PM review 2026-11-13)
 
-Every `z.string()` and `z.array()` in `apps/api/src/modules/*/*.schema.ts` (and any other request schema) gets an explicit `.max()`. Pick limits from the data: names, barcodes, notes, usernames, passwords (bcrypt limit 72 is already enforced), cart lines per transaction, purchase lines. Over-limit input returns the existing `validationError` with an Indonesian message.
+- Login body: `username` and `password` get explicit `.max()` (password stays within the bcrypt 72-byte rule).
+- Every `items` array in request schemas, at least checkout (transactions) and purchases, gets `.max()` sized from real use with headroom.
+- Other strings are out of scope for v1.
+
+Over-limit input returns the existing `validationError` with an Indonesian message.
 
 ## Acceptance
 
-- [ ] No unbounded string or array in request schemas (grep shows none).
-- [ ] The web forms do not allow input the API now rejects (add `maxLength` where needed), so users see the limit before submitting.
+- [ ] Plain `node:assert` tests (run with `npx tsx`) for each limit, written first: at the limit passes, one over fails.
+- [ ] The web does not let users build a cart or purchase larger than the limit without a clear message.
 - [ ] `npm run typecheck -w @waregos/api` and `cd apps/web; npx tsc --noEmit` pass.
-- [ ] Local manual check: one over-limit request per module returns 400 with a readable message.
 
 ## Comments

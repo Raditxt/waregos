@@ -15,7 +15,8 @@ ADR: 0006
 
 ## Acceptance
 
-- [ ] `db` healthy, no published ports (`ss -tlnp` shows only SSH from the outside).
+- [ ] `db` healthy.
+- [ ] ADR 0008 verification (Docker bypasses UFW, so check directly): `docker compose config` shows no `ports:` on `api` and `db`; `ss -tlnp` on the host shows nothing on 3001 or 5432; `docker network inspect` on the internal network lists only Waregos containers.
 - [ ] Memory after start noted (baseline for the 70% rule).
 
 ## Comments

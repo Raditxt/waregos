@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Type: task
-Blocked by: 11
+Blocked by: 11, 02, `.scratch/api-hardening/` 03
 Stage: 4
 ADR: 0006, 0008
 
