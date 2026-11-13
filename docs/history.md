@@ -87,3 +87,12 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
 - Migration flow: Compose stack on the VPS → dump `public` from Supabase and restore → API live on `api.waregos.com` → backups to R2 with alarm and restore drill → cutover (web on `app.waregos.com`, `CORS_ORIGINS=https://app.waregos.com`, `waregos.pages.dev` kept until stable).
 - Extra tickets: `.max()` limits on Zod string/array inputs and an explicit Fastify `bodyLimit`.
 - Cutover is gated by working backups and a passed restore drill, not by the domain. Target v1: mid-January 2027, at about 5 hours of work per week. Dates per stage in `docs/roadmap.md`.
+
+## 2026-11-13: deploy, backup and client-IP decisions
+
+- Grilling session (docs only, no `deploy/` files yet). Production Supabase is PostgreSQL 17.11; the VPS pins `postgres:17.<n>` at or above it.
+- ADR 0006 (deploy stack): public GHCR images tagged by commit SHA, built from `main`; manual release (backup, migrate, change tag) with expand/contract migrations, otherwise rollback = restore; VPS checkout at the image SHA; four DB roles with default privileges; fixed internal subnet outside Docker's default pool.
+- ADR 0007 (backups): host systemd timer every 6 h, plaintext only in tmpfs, existing `age` key, R2 with 30-day bucket lock, healthchecks.io alarm, monthly restore drill on the laptop.
+- ADR 0008 (client IP): trust only the internal subnet via `TRUST_PROXY_CIDRS`, production refuses to start without it; `CF-Connecting-IP` only if the proofs fail. Rests on the invariant that the API has no published port.
+- Freeze dump moved to 14–15 Nov, right after Railway stops, to avoid Supabase auto-pause.
+- Code PRs now go to `main` per phase. `.max()` limits and `bodyLimit` became `.scratch/api-hardening/`, a cutover gate.

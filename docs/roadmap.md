@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-12. Owner: Raditya. Update this file when a stage finishes.
+Last updated: 2026-11-13. Owner: Raditya. Update this file when a stage finishes.
 
 ## Where we are
 
@@ -12,7 +12,9 @@ Last updated: 2026-11-12. Owner: Raditya. Update this file when a stage finishes
 - Cutover is gated by working R2 backups and a passed restore drill (stage 5), not by the domain.
 - Target: v1 done mid-January 2027, at about 5 hours of work per week.
 - Work happens on branch `chore/vps-migration`; tickets in `.scratch/vps-migration/`.
-- Next action: Compose stack on the VPS, move data, API live (stages 2–4).
+- Deploy stack, backups and client IP decided 2026-11-13 (ADR 0006, 0007, 0008). Tickets: `.scratch/vps-migration/` and `.scratch/api-hardening/` (cutover gate).
+- Code PRs are merged to `main` per phase; production only runs images built from `main`.
+- Next action: freeze dump from Supabase on 14–15 Nov right after Railway stops (ticket 01), then the `deploy/` files (tickets 02–07).
 
 ## Stages
 
@@ -22,10 +24,10 @@ Last updated: 2026-11-12. Owner: Raditya. Update this file when a stage finishes
 | B | Try new features | Opening stock, stock and cost corrections, expiry layers, on the laptop only | any time | open |
 | 1 | Buy VPS and domain | Biznet MS 4.2, Ubuntu 24.04 LTS (plain), SSH key login, neutral hostname; one `.com` domain for Waregos with DNS on Cloudflare | 2026-11-09/11 | done |
 | 2 | Server setup | Hardening (non-root user, key-only SSH, firewall, unattended upgrades, swap 2 GB) — done 2026-11-10; Docker; `/srv/waregos` with Compose: Postgres (internal network only), API, `cloudflared`; memory limits per container; small Postgres settings; 14 migrations; roles (owner, `waregos_app`, read-only backup) | 17–23 Nov | in progress |
-| 3 | Move data | Dump `public` from Supabase, restore to the VPS, compare row counts per table | 17–23 Nov | open |
+| 3 | Move data | Freeze dump of `public` from Supabase (session pooler) right after Railway stops, `age`-encrypted; restore to the VPS as `waregos_owner`, compare row counts per table | dump 14–15 Nov, restore 17–23 Nov | open |
 | 4 | API live | `api.waregos.com` through the tunnel, `/health`, smoke tests, `scripts/security-suite.ps1`, client-IP and rate-limit retest behind the tunnel (spoofed XFF must get 429 on attempt 6) | 17–23 Nov | open |
-| 5 | Backups | Every 6 h, `age`-encrypted, offsite to Cloudflare R2, alarm when a run is missed (e.g. healthchecks.io), restore drill. **Gate for cutover** | 24–30 Nov | open |
-| 6 | Cutover | Attach `app.waregos.com` to Cloudflare Pages, set `NEXT_PUBLIC_API_URL` and `CORS_ORIGINS` (`https://app.waregos.com`, keep `https://waregos.pages.dev` until stable), re-enable Cloudflare production auto-deploy, retry deployment `38117c5`, smoke test, move UptimeRobot | 1–7 Dec | open |
+| 5 | Backups | Every 6 h (host systemd timer), `age`-encrypted, offsite to Cloudflare R2 with 30-day bucket lock, healthchecks.io alarm (Telegram + email), restore drill on the laptop. Daily disk check. **Gate for cutover** (ADR 0007) | 24–30 Nov | open |
+| 6 | Cutover | Gated by stage 5 and `.scratch/api-hardening/`. Attach `app.waregos.com` to Cloudflare Pages, set `NEXT_PUBLIC_API_URL` and `CORS_ORIGINS` (`https://app.waregos.com`, keep `https://waregos.pages.dev` until stable), re-enable Cloudflare production auto-deploy, retry deployment `38117c5`, smoke test, move UptimeRobot | 1–7 Dec | open |
 | 7 | Retire old hosting | Disable `db-backup.yml` for Supabase, stop Railway, delete the Supabase project after the VPS has been stable for a few days | ~1 week after cutover | open |
 | 8 | Go-live prep | Cashier account for the shop with a strong password; POS test on the cashier's real device; `docs/panduan-darurat.md` and `docs/disaster-recovery.md` for the VPS; CSP headers (`apps/web/public/_headers`); CI (typecheck + build) and branch protection on `main`; `chore/deps`; `.gitattributes` normalization; `LICENSE` for the public repo | 8–21 Dec | open |
 | 9 | Cutover day | Count physical stock, record **opening stock** (Saldo Awal) with expiry per batch | 22–28 Dec | open |
@@ -78,5 +80,4 @@ Never run `npm audit fix --force`.
 ## Open decisions
 
 - Whether cashiers may see daily profit (`totalProfit` in `/reports/summary` and `/reports/closing`). Currently they can.
-- Backup details (target, runner, retention, alarm), to be decided in a `/grilling` session.
 - License for the public repo.

@@ -2,6 +2,8 @@
 
 Status: accepted (2026-11-02), revised 2026-11-09 (provider and size), revised 2026-11-11 (domain and subdomains). Implementation in progress.
 
+Details: deploy stack in [ADR 0006](0006-vps-deploy-stack.md), backups and restore drills in [ADR 0007](0007-backup-and-restore.md), client IP behind the tunnel in [ADR 0008](0008-client-ip-behind-tunnel.md).
+
 ## Context
 
 - Railway is not on a paid plan and runs out around 2026-11-14.
