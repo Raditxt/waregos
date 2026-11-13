@@ -10,7 +10,20 @@ Behind the tunnel, every request reaches the API from `cloudflared` on the inter
 
 ## Invariant
 
-**The API has no published port. The only path to it is through `cloudflared` on the internal Compose network.** Everything below is safe only while this holds. Publishing the API port, or putting another proxy in front of it, breaks this ADR and must reopen it.
+1. **The API has no published port. The only path to it is through `cloudflared` on the internal Compose network.**
+2. **The internal network holds only Waregos services: `db`, `api`, `backup`, `cloudflared`.** No other container (TahuHak or anything else) may join it, because every address on it is trusted as a proxy and could set `X-Forwarded-For` freely.
+
+Everything below is safe only while both hold. Publishing the API port, putting another proxy in front of it, or attaching another container to the network breaks this ADR and must reopen it.
+
+### Verification
+
+Docker publishes ports by writing its own iptables rules, which **bypass UFW**, so "UFW only allows SSH" proves nothing here. The invariant is verified directly:
+
+- `docker compose config` shows no `ports:` on `api` and `db`.
+- `ss -tlnp` on the host shows nothing listening on 3001 or 5432.
+- `docker network inspect` on the internal network lists only the four Waregos containers.
+
+These checks are part of the acceptance of bringing the stack up on the VPS and of cutover, and are repeated after any change to `deploy/compose.yaml`.
 
 ## Decision
 
@@ -33,4 +46,5 @@ Behind the tunnel, every request reaches the API from `cloudflared` on the inter
 ## Consequences
 
 - Changing the Compose subnet requires changing `TRUST_PROXY_CIDRS` at the same time.
+- The rate limit keys on the full client address. For IPv6 that is one `/128`, so a client holding a whole IPv6 prefix can rotate addresses and get a fresh limit each time. Accepted for a single shop's login form; grouping by `/64` can be added later if it is ever abused.
 - Local development without a proxy keeps working, since the empty value is allowed outside production.
