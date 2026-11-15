@@ -96,3 +96,9 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
 - ADR 0008 (client IP): trust only the internal subnet via `TRUST_PROXY_CIDRS`, production refuses to start without it; `CF-Connecting-IP` only if the proofs fail. Rests on the invariant that the API has no published port.
 - Freeze dump moved to 14–15 Nov, right after Railway stops, to avoid Supabase auto-pause.
 - Code PRs now go to `main` per phase. `.max()` limits and `bodyLimit` became `.scratch/api-hardening/`, a cutover gate.
+
+## 2026-11-15: Supabase freeze dump
+
+- Took the freeze dump of `public` from Supabase after Railway stopped (no writes since 2026-11-13, so the data is frozen).
+- Verified with a test restore into an empty PostgreSQL 17.11 and per-table row counts that match Supabase. The counts are in ticket VM-01 (`.scratch/vps-migration/issues/01-freeze-dump-supabase.md`).
+- Encrypted with the existing `age` key used by the daily backup; plaintext deleted. Two encrypted copies are kept outside the repo.

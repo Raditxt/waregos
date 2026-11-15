@@ -23,7 +23,7 @@ Once Railway stops, nothing writes to Supabase, so the data is frozen. Taking th
 
 - [x] Encrypted dump exists in two places, plaintext deleted.
 - [x] Row counts per table recorded.
-- [ ] Short note in `docs/history.md` (date, that it was taken, where the counts are kept; no server details).
+- [x] Short note in `docs/history.md` (date, that it was taken, where the counts are kept; no server details).
 
 ## Comments
 
