@@ -1,6 +1,6 @@
 # 01 — Freeze dump from Supabase
 
-Status: ready-for-human
+Status: resolved
 Type: task
 Blocked by: —
 Stage: 3 (moved forward: **14–15 Nov 2026**, right after Railway stops)
@@ -21,8 +21,18 @@ Once Railway stops, nothing writes to Supabase, so the data is frozen. Taking th
 
 ## Acceptance
 
-- [ ] Encrypted dump exists in two places, plaintext deleted.
-- [ ] Row counts per table recorded.
+- [x] Encrypted dump exists in two places, plaintext deleted.
+- [x] Row counts per table recorded.
 - [ ] Short note in `docs/history.md` (date, that it was taken, where the counts are kept; no server details).
 
 ## Comments
+
+- 2026-11-15: freeze dump diambil via session pooler dengan client `postgres:17.11`
+  (`-Fc`, `--schema=public`, `--no-owner`, `--no-privileges`). Data beku sejak
+  2026-11-13 (Railway trial habis, 0/1 service online).
+- Restore uji ke `postgres:17.11` kosong: users 1, categories 9, units 7,
+  products 18, activity_logs 77, _prisma_migrations 14 (sama dengan Supabase).
+  Satu error yang diharapkan: `schema "public" already exists`.
+- Terenkripsi age (recipient sama dengan `AGE_RECIPIENT` backup harian),
+  uji dekripsi hash cocok. SHA256 `.age`: `6899896E86079F7FA0501BE4FBD259B6EFAF753B4367CAFBB8821DDC53A5F270`.
+  Plaintext dihapus. Disimpan di laptop + satu cloud privat.

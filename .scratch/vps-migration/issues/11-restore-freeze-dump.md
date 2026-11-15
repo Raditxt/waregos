@@ -20,3 +20,8 @@ ADR: 0006
 - [ ] Note in `docs/history.md`.
 
 ## Comments
+
+- 2026-11-15 (dari VM-01): restore dump (`--schema=public`) ke database kosong harus
+  menerima **tepat satu** error, `schema "public" already exists`; error lain berarti
+  restore gagal. Bootstrap role wajib `GRANT CREATE ON SCHEMA public TO waregos_owner`,
+  kalau tidak restore sebagai `waregos_owner` gagal membuat tabel.
