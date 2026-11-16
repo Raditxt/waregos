@@ -102,3 +102,10 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
 - Took the freeze dump of `public` from Supabase after Railway stopped (no writes since 2026-11-13, so the data is frozen).
 - Verified with a test restore into an empty PostgreSQL 17.11 and per-table row counts that match Supabase. The counts are in ticket VM-01 (`.scratch/vps-migration/issues/01-freeze-dump-supabase.md`).
 - Encrypted with the existing `age` key used by the daily backup; plaintext deleted. Two encrypted copies are kept outside the repo.
+
+## 2026-11-16: Compose stack tested on the laptop (VM-04)
+
+- Added `deploy/`: `compose.yaml` (`db`, `api`, `cloudflared`, `migrate` under profile `ops`, internal network `10.89.10.0/24`, no published ports), `.env.example`, `sql/bootstrap-roles.sql` and an Indonesian README for release, rollback and laptop testing.
+- Tested by hand on the laptop with `postgres:17.11-bookworm` and a locally built API image: the freeze dump restored as `waregos_owner` with only the expected `schema "public" already exists` error, row counts match Supabase, `migrate` reports no pending migrations, the API is healthy, and `waregos_app` / `waregos_backup` cannot do more than their role allows. Details in ticket VM-04.
+- Why the README uses `docker compose cp` + `psql -f`: piping stdin into a PowerShell function hangs.
+- Image tags for Postgres and `cloudflared` live in `.env`, not in the repo. Because CI cannot read `.env`, the single source for the Postgres tag of the backup image is left to VM-05.
