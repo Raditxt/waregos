@@ -18,6 +18,7 @@ out/
 backups/
 *.sql
 !packages/database/prisma/migrations/**/migration.sql
+!deploy/sql/bootstrap-roles.sql
 *.dump
 
 # Local scripts (Windows specific)
