@@ -28,3 +28,7 @@ ADR: 0007
 - [ ] `systemd-analyze verify` passes on the unit files (if available locally; otherwise note it for ticket 13).
 
 ## Comments
+
+- 2026-11-16 (dari VM-04): `POSTGRES_TAG` sekarang ada di `.env` (dibaca `deploy/compose.yaml`).
+  Workflow CI untuk image backup butuh nilai yang sama sebagai build-arg dan tidak bisa membaca
+  `.env`. Putuskan sumber tunggalnya di VM-05 (bawa ke PM chat kalau ragu).
