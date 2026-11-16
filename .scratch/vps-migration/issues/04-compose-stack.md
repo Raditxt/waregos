@@ -60,3 +60,8 @@ Create `deploy/` (first files there; allowed from this ticket on).
     di-pipe ke fungsi PowerShell `dc` menggantung. README sudah diperbarui.
   - Commit: `8dda3d4`, `c50c637`, `7452e38`. `.gitignore` sekarang mengecualikan
     `deploy/sql/bootstrap-roles.sql` dari aturan `*.sql`.
+- 2026-11-16 (uji tambahan di laptop, Postgres 17.11):
+  - `waregos_app` INSERT (di-rollback): berhasil.
+  - `waregos_app` DROP TABLE: `must be owner`.
+  - `waregos_backup` INSERT: `permission denied`.
+  - Ketiga kriteria itu kini terbukti di laptop, bukan hanya di PG16 di workspace Claude.
