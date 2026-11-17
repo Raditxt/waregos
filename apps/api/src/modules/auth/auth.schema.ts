@@ -17,10 +17,19 @@ export const passwordSchema = z
   .min(8, { message: 'Password minimal 8 karakter' })
   .max(72, { message: 'Password maksimal 72 karakter' })
 
-// Login tidak menegakkan kebijakan password (itu urusan saat password dibuat)
+// Login tidak menegakkan kebijakan password (itu urusan saat password dibuat),
+// hanya batas panjang: password yang valid tidak pernah lebih dari 72 karakter.
 export const loginSchema = z.object({
-  username: z.string().trim().toLowerCase().min(1, { message: 'Username wajib diisi' }).max(50),
-  password: z.string().min(1, { message: 'Password wajib diisi' }).max(128),
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, { message: 'Username wajib diisi' })
+    .max(50, { message: 'Username maksimal 50 karakter' }),
+  password: z
+    .string()
+    .min(1, { message: 'Password wajib diisi' })
+    .max(72, { message: 'Password maksimal 72 karakter' }),
 })
 
 export type LoginInput = z.infer<typeof loginSchema>

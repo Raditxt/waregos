@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_PURCHASE_ITEMS } from '@waregos/utils'
 import { parseExpiry } from '../../shared/expiry'
 
 export const purchaseItemSchema = z.object({
@@ -19,7 +20,10 @@ export const createPurchaseSchema = z
     supplierId: z.string().uuid().optional(),
     supplierName: z.string().trim().min(1).max(100).optional(),
     supplierRef: z.string().trim().min(1).max(50).optional(),
-    items: z.array(purchaseItemSchema).min(1).max(200),
+    items: z
+      .array(purchaseItemSchema)
+      .min(1)
+      .max(MAX_PURCHASE_ITEMS, { message: `Satu nota maksimal ${MAX_PURCHASE_ITEMS} baris` }),
     notes: z.string().trim().max(500).optional(),
     purchasedAt: z.string().datetime({ offset: true }).optional(),
   })

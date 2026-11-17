@@ -60,3 +60,14 @@ export function getPaginationParams(query: { page?: string; limit?: string }) {
   const skip = (page - 1) * limit
   return { page, limit, skip }
 }
+
+// ============================================
+// BATAS INPUT
+// Dipakai API (validasi Zod) dan web (pesan sebelum mengirim), supaya tidak beda.
+// Keranjang toko kelontong jarang lebih dari beberapa puluh produk; 200 memberi
+// ruang longgar dan badan request tetap kecil (sekitar 20 KB).
+// ============================================
+export const MAX_TRANSACTION_ITEMS = 200
+// Satu nota pembelian atau saldo awal. Satu produk bisa beberapa baris (beda kedaluwarsa).
+// Stok awal yang lebih besar dipecah menjadi beberapa nota.
+export const MAX_PURCHASE_ITEMS = 200

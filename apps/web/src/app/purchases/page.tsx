@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { api, getErrorMessage } from '@/lib/api'
 import { formatRupiah, formatNumber, parseNumber } from '@/lib/format'
+import { MAX_PURCHASE_ITEMS } from '@waregos/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -261,7 +262,17 @@ export default function PurchasesPage() {
     setSearchResults([])
   }
 
+  // Batas yang sama ditegakkan API; di sini supaya jelas sebelum nota disimpan
+  const lineLimitReached = () => {
+    if (items.length < MAX_PURCHASE_ITEMS) return false
+    toast.error(
+      `Satu nota maksimal ${MAX_PURCHASE_ITEMS} baris. Simpan nota ini dulu, lalu lanjutkan di nota baru.`
+    )
+    return true
+  }
+
   const addProduct = (p: Product) => {
+    if (!items.some((i) => i.productId === p.id) && lineLimitReached()) return
     setItems((prev) => {
       let at = -1
       prev.forEach((i, idx) => { if (i.productId === p.id) at = idx })
@@ -275,6 +286,7 @@ export default function PurchasesPage() {
   }
 
   const addBatch = (productId: string) => {
+    if (lineLimitReached()) return
     setItems((prev) => {
       let at = -1
       prev.forEach((i, idx) => { if (i.productId === productId) at = idx })

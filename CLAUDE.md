@@ -55,6 +55,9 @@ npm run lint
 npm run typecheck -w @waregos/api
 cd apps/web; npx tsc --noEmit; cd ../..
 npx tsx apps/api/src/shared/expiry-layers.test.ts   # prints "expiry-layers: semua tes lulus"; throws on failure
+npx tsx apps/api/src/shared/trust-proxy.test.ts      # prints "trust-proxy: semua tes lulus"; throws on failure
+npx tsx apps/api/src/shared/input-limits.test.ts     # prints "input-limits: semua tes lulus"; throws on failure
+npx tsx apps/api/src/shared/body-limit.test.ts       # prints "body-limit: semua tes lulus"; throws on failure
 
 # Database (packages/database; schema at packages/database/prisma/schema.prisma)
 npm run db:migrate  -w @waregos/database   # prisma migrate dev (new migration), localhost only
@@ -64,7 +67,7 @@ npm run db:seed     -w @waregos/database   # LOCALHOST ONLY; needs SEED_ADMIN_US
 npm run db:studio   -w @waregos/database
 ```
 
-**Env.** Copy `apps/api/.env.example` to `apps/api/.env`. The API exits at startup unless `JWT_SECRET` and `DATABASE_URL` are set. `CORS_ORIGINS` is required in every environment for browser access (dev: `http://localhost:3000`); if it is empty, every browser origin is rejected. In production `JWT_SECRET` must be at least 32 characters. Prisma also reads `DIRECT_URL`. The web app reads `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api`), which is baked in at build time.
+**Env.** Copy `apps/api/.env.example` to `apps/api/.env`. The API exits at startup unless `JWT_SECRET` and `DATABASE_URL` are set. `CORS_ORIGINS` is required in every environment for browser access (dev: `http://localhost:3000`); if it is empty, every browser origin is rejected. In production `JWT_SECRET` must be at least 32 characters. `TRUST_PROXY_CIDRS` (comma-separated CIDRs of trusted proxies, ADR 0008) may stay empty in dev (`trustProxy=false`); in production the API exits at startup when it is empty. Prisma also reads `DIRECT_URL`. The web app reads `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api`), which is baked in at build time.
 
 **Tests.** There is no test runner yet. `*.test.ts` files are plain `node:assert` scripts run with `npx tsx <file>`.
 

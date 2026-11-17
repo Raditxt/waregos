@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_TRANSACTION_ITEMS } from '@waregos/utils'
 
 export const transactionItemSchema = z.object({
   productId: z.string().uuid({ message: 'Produk tidak valid' }),
@@ -7,7 +8,12 @@ export const transactionItemSchema = z.object({
 })
 
 export const createTransactionSchema = z.object({
-  items: z.array(transactionItemSchema).min(1, { message: 'Transaksi harus memiliki minimal 1 item' }),
+  items: z
+    .array(transactionItemSchema)
+    .min(1, { message: 'Transaksi harus memiliki minimal 1 item' })
+    .max(MAX_TRANSACTION_ITEMS, {
+      message: `Satu transaksi maksimal ${MAX_TRANSACTION_ITEMS} produk`,
+    }),
   // TRANSFER dibuang: sudah tidak dipakai. Enum database tetap menyimpannya untuk data lama.
   paymentMethod: z.enum(['CASH', 'QRIS', 'DEBT'], { message: 'Metode pembayaran tidak valid' }),
   paidAmount: z.number().min(0, { message: 'Jumlah bayar tidak boleh negatif' }),

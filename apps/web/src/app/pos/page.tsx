@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { api, getErrorMessage } from '@/lib/api'
 import { formatRupiah, formatNumber, parseNumber } from '@/lib/format'
 import { newUuid } from '@/lib/uuid'
+import { MAX_TRANSACTION_ITEMS } from '@waregos/utils'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { id } from 'date-fns/locale'
@@ -123,6 +124,13 @@ export default function PosPage() {
 
   const addToCart = (p: Product) => {
     if (p.stock <= 0) { toast.error('Stok habis'); return }
+    // Batas yang sama ditegakkan API; di sini supaya kasir tahu sebelum membayar
+    if (cart.length >= MAX_TRANSACTION_ITEMS && !cart.some(i => i.productId === p.id)) {
+      toast.error(
+        `Keranjang sudah berisi ${MAX_TRANSACTION_ITEMS} produk. Selesaikan transaksi ini dulu, lalu lanjutkan di transaksi baru.`
+      )
+      return
+    }
     setCart(prev => {
       const existing = prev.find(i => i.productId === p.id)
       if (existing) {

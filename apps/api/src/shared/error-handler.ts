@@ -43,6 +43,15 @@ export const globalErrorHandler: ErrorHandler = (
     return
   }
 
+  // Badan request melebihi bodyLimit
+  if (error.statusCode === 413) {
+    reply.code(413).send(badRequest(
+      'Data yang dikirim terlalu besar. Kurangi isinya atau pecah menjadi beberapa bagian.',
+      'PAYLOAD_TOO_LARGE'
+    ))
+    return
+  }
+
   // Not found
   if (error.statusCode === 404) {
     reply.code(404).send(badRequest('Resource tidak ditemukan', 'NOT_FOUND'))
