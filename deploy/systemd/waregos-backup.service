@@ -1,0 +1,19 @@
+# Backup database Waregos ke R2 (ADR 0007). Dipicu waregos-backup.timer.
+# Pasang: lihat deploy/README.md bagian "Backup".
+[Unit]
+Description=Backup database Waregos ke R2
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/waregos
+# --no-deps: kalau db mati, backup gagal dan healthchecks membunyikan alarm,
+# bukan diam-diam menyalakan db.
+ExecStart=/usr/bin/docker compose -f repo/deploy/compose.yaml --env-file .env --profile ops run --rm --no-deps backup
+TimeoutStartSec=30min
+# Jangan berebut CPU dan disk dengan API saat jam ramai.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

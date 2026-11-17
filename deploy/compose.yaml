@@ -3,7 +3,7 @@
 #   docker compose -f repo/deploy/compose.yaml --env-file .env <perintah>
 #
 # Invariant ADR 0008: db dan api TIDAK punya `ports:`, dan network `internal`
-# hanya berisi db, api, backup (tiket 05), cloudflared. Ubah file ini = ulangi
+# hanya berisi db, api, backup, cloudflared. Ubah file ini = ulangi
 # verifikasi ADR 0008.
 # Tidak ada `logging:`: daemon Docker di VPS sudah memakai driver `local` 10 MB x 3.
 
@@ -90,6 +90,46 @@ services:
       DATABASE_URL: postgresql://waregos_owner:${WAREGOS_OWNER_PASSWORD:?isi WAREGOS_OWNER_PASSWORD di .env}@db:5432/waregos?schema=public
       DIRECT_URL: postgresql://waregos_owner:${WAREGOS_OWNER_PASSWORD}@db:5432/waregos?schema=public
     command: ["/app/node_modules/.bin/prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
+    networks:
+      - internal
+
+  # Sekali jalan (ADR 0007). Dipicu timer systemd di host tiap 6 jam
+  # (deploy/systemd/), manual: docker compose ... --profile ops run --rm --no-deps backup
+  # Tanpa depends_on: kalau db mati, backup gagal dan alarm berbunyi (bukan menyalakan db).
+  # Variabelnya pakai `:-` supaya `up` tetap jalan sebelum akun R2 ada; skrip menolak
+  # jalan kalau ada yang kosong.
+  backup:
+    # Dibangun workflow `images` dari commit yang sama dengan image API, jadi tag-nya sama.
+    image: ghcr.io/raditxt/waregos-backup:${API_IMAGE_TAG:?isi API_IMAGE_TAG di .env}
+    profiles: ["ops"]
+    restart: "no"
+    environment:
+      PGHOST: db
+      PGDATABASE: waregos
+      PGUSER: waregos_backup
+      PGPASSWORD: ${WAREGOS_BACKUP_PASSWORD:-}
+      AGE_RECIPIENT: ${AGE_RECIPIENT:-}
+      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_REGION: auto
+      RCLONE_CONFIG_R2_ENDPOINT: ${R2_ENDPOINT:-}
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      # Token VPS hanya boleh menulis objek, tidak boleh membuat atau membaca daftar bucket.
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    # Plaintext dump hanya di sini (RAM). Ikut dihitung ke mem_limit.
+    tmpfs:
+      - /work:size=128m,mode=0700,uid=999,gid=999
+      # Image postgres punya VOLUME di sini; tanpa ini tiap run dapat volume disk
+      # anonim yang bisa ditulis. Ditutup supaya satu-satunya tempat menulis adalah /work.
+      - /var/lib/postgresql/data:size=1m,mode=0555
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
     networks:
       - internal
 

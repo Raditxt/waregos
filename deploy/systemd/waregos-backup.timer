@@ -1,0 +1,13 @@
+# Tiap 6 jam (ADR 0007). Persistent: run yang terlewat (VPS mati) dikejar saat menyala.
+# RandomizedDelaySec <= 30 menit; grace healthchecks.io 2 jam sudah menutupnya.
+[Unit]
+Description=Jadwal backup database Waregos tiap 6 jam
+
+[Timer]
+OnCalendar=*-*-* 00/6:00:00
+Persistent=true
+RandomizedDelaySec=30min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
