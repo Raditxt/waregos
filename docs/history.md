@@ -109,3 +109,14 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
 - Tested by hand on the laptop with `postgres:17.11-bookworm` and a locally built API image: the freeze dump restored as `waregos_owner` with only the expected `schema "public" already exists` error, row counts match Supabase, `migrate` reports no pending migrations, the API is healthy, and `waregos_app` / `waregos_backup` cannot do more than their role allows. Details in ticket VM-04.
 - Why the README uses `docker compose cp` + `psql -f`: piping stdin into a PowerShell function hangs.
 - Image tags for Postgres and `cloudflared` live in `.env`, not in the repo. Because CI cannot read `.env`, the single source for the Postgres tag of the backup image is left to VM-05.
+
+## 2026-11-17: API hardening merged, image workflow, backup job
+
+- VM-03: `.github/workflows/images.yml` builds the API image on push to `main` and pushes it to GHCR, tagged with the full commit SHA; actions pinned by SHA. The first run (merge of PR #13, `d7da86a`) passed.
+- VM-02 and `.scratch/api-hardening/` 01–03, merged in PR #12:
+  - `trustProxy` now comes only from `TRUST_PROXY_CIDRS`; the Railway CIDR list is gone and production refuses to start without it. An `app.inject` test proves `request.ip` is the right-most untrusted `X-Forwarded-For` entry (ADR 0008 proof 1); the fallback to `CF-Connecting-IP` is not needed.
+  - Login limits (username 50, password 72 instead of 128) and a limit of 200 `items` for checkout, purchases and manual debts, with Indonesian messages; the POS and purchase form stop at the same limit.
+  - `bodyLimit` 64 KiB. Oversized bodies used to fall through to a 500; they now get 413 `PAYLOAD_TOO_LARGE`.
+  - Dependabot: of 33 critical/high alerts only `zod` and `deepmerge-ts` reach the API runtime, and both need a major upgrade. Why that is acceptable for now is in ticket 03; the rest belongs to `chore/deps`.
+- VM-05 (not closed yet): backup image, script, `backup` service and systemd timer. The Postgres tag for the backup image comes from the file `deploy/postgres-tag` rather than a GitHub variable, so it has history and builds can be repeated; `.env` on the VPS stays hand-edited so minor Postgres upgrades stay deliberate. Tested on the laptop with rclone's local backend and a fake healthchecks server: success, wrong password, empty config, missing tmpfs and failed upload all behave as expected, and the dump restores. The run against the real R2 test bucket waits for VM-09.
+

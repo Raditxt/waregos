@@ -19,6 +19,8 @@ env:
   REGISTRY: ghcr.io
   # Harus sama dengan `x-api-image` di deploy/compose.yaml. GHCR wajib huruf kecil.
   API_IMAGE: ghcr.io/raditxt/waregos-api
+  # Harus sama dengan service `backup` di deploy/compose.yaml.
+  BACKUP_IMAGE: ghcr.io/raditxt/waregos-backup
 
 jobs:
   api:
@@ -62,7 +64,60 @@ jobs:
         run: |
           echo "Image API: \`${API_IMAGE}:${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
 
-  # --- Tempat image backup (tiket VM-05, ADR 0007) ---
-  # Tambahkan job `backup` di sini dengan pola yang sama: permissions per job,
-  # tag = SHA commit, base image = tag Postgres yang sama dengan service `db`
-  # (sumber tunggalnya diputuskan di VM-05).
+  # Image job backup (ADR 0007). Base = tag Postgres dari deploy/postgres-tag,
+  # yang juga harus sama dengan POSTGRES_TAG di .env VPS (service `db`).
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Baca tag Postgres
+        id: pg
+        run: |
+          set -eu
+          tag=$(tr -d '[:space:]' < deploy/postgres-tag)
+          if ! printf '%s' "$tag" | grep -Eq '^[0-9]+\.[0-9]+-[a-z]+$'; then
+            echo "::error::deploy/postgres-tag tidak valid: '$tag' (contoh: 17.11-bookworm)"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Siapkan Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Login ke GHCR
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Satu-satunya build-arg adalah tag Postgres (bukan rahasia).
+      - name: Build dan push image backup
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: deploy/backup
+          file: deploy/backup/Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            POSTGRES_TAG=${{ steps.pg.outputs.tag }}
+          tags: ${{ env.BACKUP_IMAGE }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,scope=backup,mode=max
+
+      - name: Ringkasan
+        env:
+          PG_TAG: ${{ steps.pg.outputs.tag }}
+        run: |
+          echo "Image backup: \`${BACKUP_IMAGE}:${GITHUB_SHA}\` (base postgres:${PG_TAG})" >> "$GITHUB_STEP_SUMMARY"
