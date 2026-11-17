@@ -45,3 +45,7 @@ Replace the hardcoded Railway CIDR list in `apps/api/src/index.ts` with an env-d
     `NODE_ENV=production`, jadi diberi `TRUST_PROXY_CIDRS: 127.0.0.1/32` supaya rehearsal tetap
     bisa start. Rehearsal Docker-nya sendiri belum dijalankan ulang.
   - Bukti 2 dan 3 di ADR 0008 (observasi lewat tunnel, retest rate limit) tetap bagian VM-12.
+- 2026-11-17 (agent, susulan): stack rehearsal sudah dijalankan dari branch ini (nama proyek
+  terpisah, lalu dihapus). API start sebagai produksi dengan `TRUST_PROXY_CIDRS: 127.0.0.1/32`
+  dan `/health` 200. Dengan `X-Forwarded-For` palsu yang berganti-ganti, percobaan login
+  ke-6 tetap 429. Ini cek lokal; bukti 2 dan 3 ADR 0008 lewat tunnel tetap di VM-12.
