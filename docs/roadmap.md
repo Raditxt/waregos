@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-13. Owner: Raditya. Update this file when a stage finishes.
+Last updated: 2026-11-17. Owner: Raditya. Update this file when a stage finishes.
 
 ## Where we are
 
@@ -14,7 +14,8 @@ Last updated: 2026-11-13. Owner: Raditya. Update this file when a stage finishes
 - Work happens on branch `chore/vps-migration`; tickets in `.scratch/vps-migration/`.
 - Deploy stack, backups and client IP decided 2026-11-13 (ADR 0006, 0007, 0008). Tickets: `.scratch/vps-migration/` and `.scratch/api-hardening/` (cutover gate).
 - Code PRs are merged to `main` per phase; production only runs images built from `main`.
-- Next action: freeze dump (ticket 01, 2026-11-15), the Compose stack (ticket 04, 2026-11-16) and the image build workflow (ticket 03, 2026-11-17, not run yet) are done. Next is ticket 02 (`trustProxy` from `TRUST_PROXY_CIDRS`), then ticket 05 (backup job).
+- Done so far: freeze dump (VM-01, 2026-11-15), Compose stack (VM-04, 2026-11-16), image build workflow (VM-03) and `TRUST_PROXY_CIDRS` (VM-02) plus `.scratch/api-hardening/` 01–03 (2026-11-17, merged to `main` in PR #12 and #13; first image `waregos-api:d7da86a…` built). Backup job (VM-05) is written and tested locally with a stand-in for R2; the real R2 test waits for VM-09.
+- Next action: Raditya does VM-09 (cloud accounts; the R2 test bucket and test check first) and makes the GHCR packages public. The agent continues with VM-06 (restore drill script) and VM-07 (host disk check), then closes VM-05 against the test bucket.
 
 ## Stages
 
