@@ -31,6 +31,7 @@ import prismaPlugin from './plugins/prisma';
 import jwtPlugin from './plugins/jwt';
 import corsPlugin from './plugins/cors';
 import { globalErrorHandler } from './shared/error-handler';
+import { BODY_LIMIT_BYTES } from './shared/body-limit';
 import { logger } from './shared/logger';
 
 // Routes
@@ -49,6 +50,7 @@ import { stockRoutes } from './modules/stock/stock.route';
 const app = Fastify({
   logger: false, // Pakai custom logger
   trustProxy,
+  bodyLimit: BODY_LIMIT_BYTES, // 64 KiB; alasan ukurannya ada di shared/body-limit.ts
 });
 
 const start = async () => {
