@@ -1,25 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { DebtService } from './debt.service'
 import { JwtPayload } from '@waregos/types'
-import { z } from 'zod'
 import { ok, validationError, badRequest } from '../../shared/response'
-
-const addDebtSchema = z.object({
-  customerName: z.string().min(1, { message: 'Nama pelanggan wajib diisi' }),
-  amount: z.number().positive({ message: 'Jumlah hutang harus lebih dari 0' }),
-  items: z.array(z.object({
-    name: z.string(),
-    quantity: z.number(),
-    price: z.number(),
-  })).optional(),
-  notes: z.string().optional(),
-})
-
-const paymentSchema = z.object({
-  customerName: z.string().min(1),
-  amount: z.number().positive({ message: 'Jumlah bayar harus lebih dari 0' }),
-  notes: z.string().optional(),
-})
+import { addDebtSchema, paymentSchema } from './debt.schema'
 
 export async function debtRoutes(app: FastifyInstance) {
   const service = new DebtService(app.prisma)
