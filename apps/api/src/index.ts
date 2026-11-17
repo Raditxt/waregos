@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { trustProxyFromEnv } from './shared/trust-proxy';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -12,6 +13,14 @@ for (const envVar of requiredEnvVars) {
 }
 if (isProd && (process.env.JWT_SECRET as string).length < 32) {
   console.error('❌ FATAL: JWT_SECRET minimal 32 karakter di produksi.');
+  process.exit(1);
+}
+// Proxy tepercaya untuk X-Forwarded-For (ADR 0008). Wajib diisi di produksi.
+let trustProxy: string[] | false;
+try {
+  trustProxy = trustProxyFromEnv(process.env);
+} catch (err) {
+  console.error(`❌ FATAL: ${(err as Error).message}`);
   process.exit(1);
 }
 
@@ -36,11 +45,6 @@ import { debtRoutes } from './modules/debt/debt.route';
 import { activityRoutes } from './modules/audit/audit.route';
 import { stockRoutes } from './modules/stock/stock.route';
 
-
-const trustProxy: boolean | string[] =
-  process.env.TRUST_PROXY === 'true' || Number(process.env.TRUST_PROXY_HOPS ?? 0) > 0
-    ? ['127.0.0.1', '::1', '10.0.0.0/8', '100.0.0.0/8', '152.233.0.0/16', '172.16.0.0/12', '192.168.0.0/16']
-    : false;
 
 const app = Fastify({
   logger: false, // Pakai custom logger

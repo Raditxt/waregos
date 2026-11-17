@@ -56,6 +56,9 @@ services:
       JWT_SECRET: ${REHEARSAL_JWT_SECRET:?isi REHEARSAL_JWT_SECRET di .env.rehearsal}
       DATABASE_URL: postgresql://postgres:${REHEARSAL_DB_PASSWORD}@db:5432/waregos_test?schema=public
       CORS_ORIGINS: http://localhost:3000
+      # Rehearsal tanpa proxy (API diakses langsung di :3002). Produksi wajib mengisi
+      # variabel ini; loopback saja berarti X-Forwarded-For dari luar tidak pernah dipakai.
+      TRUST_PROXY_CIDRS: 127.0.0.1/32
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
