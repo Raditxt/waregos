@@ -14,7 +14,7 @@ Last updated: 2026-11-13. Owner: Raditya. Update this file when a stage finishes
 - Work happens on branch `chore/vps-migration`; tickets in `.scratch/vps-migration/`.
 - Deploy stack, backups and client IP decided 2026-11-13 (ADR 0006, 0007, 0008). Tickets: `.scratch/vps-migration/` and `.scratch/api-hardening/` (cutover gate).
 - Code PRs are merged to `main` per phase; production only runs images built from `main`.
-- Next action: freeze dump (ticket 01, 2026-11-15) and the Compose stack (ticket 04, 2026-11-16) are done. Next are ticket 02 (`trustProxy` from `TRUST_PROXY_CIDRS`) and ticket 03 (image build workflow), then ticket 05 (backup job).
+- Next action: freeze dump (ticket 01, 2026-11-15), the Compose stack (ticket 04, 2026-11-16) and the image build workflow (ticket 03, 2026-11-17, not run yet) are done. Next is ticket 02 (`trustProxy` from `TRUST_PROXY_CIDRS`), then ticket 05 (backup job).
 
 ## Stages
 
