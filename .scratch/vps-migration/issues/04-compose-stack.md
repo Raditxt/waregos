@@ -1,6 +1,6 @@
 # 04 — Compose stack, role bootstrap, migrate profile
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: —
 Stage: 2
@@ -24,13 +24,13 @@ Create `deploy/` (first files there; allowed from this ticket on).
 
 ## Acceptance
 
-- [ ] On the laptop with a local `.env`: `db` up, bootstrap SQL applied, latest backup (decrypted) restored **as `waregos_owner`**, `migrate` profile reports 14 applied, `api` healthy using a locally built image tag.
-- [ ] As `waregos_app`: SELECT/INSERT work, `CREATE TABLE` and `DROP` fail.
-- [ ] As `waregos_backup`: SELECT works, INSERT fails.
-- [ ] A table created by `waregos_owner` after bootstrap is readable by app and backup without extra grants.
-- [ ] `docker compose config` shows no published ports for `db` and `api`.
-- [ ] Prisma CLI runs inside the runtime image.
-- [ ] Datasource line of every Prisma command checked to be local.
+- [x] On the laptop with a local `.env`: `db` up, bootstrap SQL applied, latest backup (decrypted) restored **as `waregos_owner`**, `migrate` profile reports 14 applied, `api` healthy using a locally built image tag.
+- [x] As `waregos_app`: SELECT/INSERT work, `CREATE TABLE` and `DROP` fail.
+- [x] As `waregos_backup`: SELECT works, INSERT fails.
+- [x] A table created by `waregos_owner` after bootstrap is readable by app and backup without extra grants.
+- [x] `docker compose config` shows no published ports for `db` and `api`.
+- [x] Prisma CLI runs inside the runtime image.
+- [x] Datasource line of every Prisma command checked to be local.
 
 ## Comments
 
@@ -38,3 +38,30 @@ Create `deploy/` (first files there; allowed from this ticket on).
   menerima **tepat satu** error, `schema "public" already exists`; error lain berarti
   restore gagal. Bootstrap role wajib `GRANT CREATE ON SCHEMA public TO waregos_owner`,
   kalau tidak restore sebagai `waregos_owner` gagal membuat tabel.
+- 2026-11-16 (selesai): diuji manual oleh Raditya di laptop, Docker Desktop,
+  `postgres:17.11-bookworm`, image API dibangun lokal. Hasil:
+  - `bootstrap-roles.sql` jalan tanpa error; role `waregos_owner`/`waregos_app`/`waregos_backup`
+    tanpa atribut khusus.
+  - Restore freeze dump VM-01 sebagai `waregos_owner`: tepat satu error,
+    `schema "public" already exists`.
+  - Hitung baris sebagai `waregos_backup` (tabel dibuat owner setelah bootstrap, terbaca tanpa
+    grant tambahan): users 1, categories 9, units 7, products 18, activity_logs 77,
+    _prisma_migrations 14. Sama dengan Supabase.
+  - `--profile ops run --rm migrate`: Datasource `db:5432`, 14 migrations, no pending. Ini
+    membuktikan Prisma CLI ada di image runtime dan password owner benar.
+  - `api` healthy (`/health` menjalankan `SELECT 1`, jadi password `waregos_app` benar).
+  - `waregos_app` CREATE TABLE: `permission denied for schema public`.
+  - `waregos_backup` DELETE: `permission denied for table units`.
+  - `docker compose config` tidak memuat `published`; PORTS hanya `3001/tcp` dan `5432/tcp`
+    (port container, tidak dipublikasikan ke host).
+  - `cloudflared` di-pin lewat `CLOUDFLARED_TAG` di `.env` (dipakai 2026.10.7), bukan di repo.
+  - `cloudflared` `depends_on` `api` healthy. Tambahan, tidak diatur ADR.
+  - Di PowerShell pakai `dc cp` + `psql -f` / path file di container, bukan pipe: stdin yang
+    di-pipe ke fungsi PowerShell `dc` menggantung. README sudah diperbarui.
+  - Commit: `8dda3d4`, `c50c637`, `7452e38`. `.gitignore` sekarang mengecualikan
+    `deploy/sql/bootstrap-roles.sql` dari aturan `*.sql`.
+- 2026-11-16 (uji tambahan di laptop, Postgres 17.11):
+  - `waregos_app` INSERT (di-rollback): berhasil.
+  - `waregos_app` DROP TABLE: `must be owner`.
+  - `waregos_backup` INSERT: `permission denied`.
+  - Ketiga kriteria itu kini terbukti di laptop, bukan hanya di PG16 di workspace Claude.

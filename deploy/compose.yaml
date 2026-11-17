@@ -1,0 +1,103 @@
+# Stack produksi Waregos di VPS (ADR 0006, 0008).
+# Jalankan dari /srv/waregos:
+#   docker compose -f repo/deploy/compose.yaml --env-file .env <perintah>
+#
+# Invariant ADR 0008: db dan api TIDAK punya `ports:`, dan network `internal`
+# hanya berisi db, api, backup (tiket 05), cloudflared. Ubah file ini = ulangi
+# verifikasi ADR 0008.
+# Tidak ada `logging:`: daemon Docker di VPS sudah memakai driver `local` 10 MB x 3.
+
+name: waregos
+
+x-api-image: &api-image ghcr.io/raditxt/waregos-api:${API_IMAGE_TAG:?isi API_IMAGE_TAG di .env}
+
+services:
+  db:
+    image: postgres:${POSTGRES_TAG:?isi POSTGRES_TAG di .env}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: waregos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?isi POSTGRES_SUPERUSER_PASSWORD di .env}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=192MB
+      - -c
+      - max_connections=30
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d waregos"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - internal
+
+  api:
+    image: *api-image
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=256
+      DATABASE_URL: postgresql://waregos_app:${WAREGOS_APP_PASSWORD:?isi WAREGOS_APP_PASSWORD di .env}@db:5432/waregos?schema=public
+      JWT_SECRET: ${JWT_SECRET:?isi JWT_SECRET di .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?isi CORS_ORIGINS di .env}
+      # Diabaikan image lama; dipakai setelah tiket 02. Harus sama dengan subnet di bawah.
+      TRUST_PROXY_CIDRS: 10.89.10.0/24
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_TAG:?isi CLOUDFLARED_TAG di .env}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      # Kosong di laptop tidak apa-apa selama cloudflared tidak dinyalakan.
+      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN:-}
+    mem_limit: 128m
+    networks:
+      - internal
+
+  # Sekali jalan, manual: docker compose ... --profile ops run --rm migrate
+  # Tidak pernah ikut `up`. Seed TIDAK pernah dijalankan di VPS.
+  migrate:
+    image: *api-image
+    profiles: ["ops"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /app/packages/database
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://waregos_owner:${WAREGOS_OWNER_PASSWORD:?isi WAREGOS_OWNER_PASSWORD di .env}@db:5432/waregos?schema=public
+      DIRECT_URL: postgresql://waregos_owner:${WAREGOS_OWNER_PASSWORD}@db:5432/waregos?schema=public
+    command: ["/app/node_modules/.bin/prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
+    networks:
+      - internal
+
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: 10.89.10.0/24
+
+volumes:
+  db-data:
