@@ -120,3 +120,14 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
   - Dependabot: of 33 critical/high alerts only `zod` and `deepmerge-ts` reach the API runtime, and both need a major upgrade. Why that is acceptable for now is in ticket 03; the rest belongs to `chore/deps`.
 - VM-05 (not closed yet): backup image, script, `backup` service and systemd timer. The Postgres tag for the backup image comes from the file `deploy/postgres-tag` rather than a GitHub variable, so it has history and builds can be repeated; `.env` on the VPS stays hand-edited so minor Postgres upgrades stay deliberate. Tested on the laptop with rclone's local backend and a fake healthchecks server: success, wrong password, empty config, missing tmpfs and failed upload all behave as expected, and the dump restores. The run against the real R2 test bucket waits for VM-09.
 
+
+## 2026-11-20: G1 usability test passed, follow-up tickets
+
+- G1 (POS test with Ibu on 2026-11-15; laptop, dummy data, accessed from a phone) **passed**.
+- Findings became tickets in `.scratch/g1-usability/issues/`:
+  - G1-01 (`ready-for-agent`): saving a new product took 3–5 s. Measure first on a local production build; under 1 s means it was a dev-mode artefact, otherwise diagnose.
+  - G1-02 (`needs-triage`): scan barcodes with the phone camera in POS. Blocked by HTTPS on `app.waregos.com` (camera access needs a secure context).
+  - G1-03 (`needs-triage`): a friendlier theme for cashiers (easy on the eyes, not old-fashioned). Needs grilling and a prototype.
+  - G1-04 (`needs-triage`): show the shop name "Toko Rabay Orange" and a logo in the cashier UI on phones. The mobile header already shows both in small type; check how it looks on the phone first.
+  - G1-05 (`needs-triage`): friendlier create/edit/delete flows. Needs grilling on flow and persona (admin vs cashier).
+- Not a ticket: manual QRIS payment must be tested during the parallel run.
