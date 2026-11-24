@@ -22,7 +22,7 @@ ADR: 0007
 
 ## Acceptance
 
-- [ ] Locally, against the stack from ticket 04: a run uploads one encrypted file to the **test** R2 bucket and pings healthchecks (Raditya supplies the test credentials in the local `.env`; the agent never reads `.env`).
+- [x] Locally, against the stack from ticket 04: a run uploads one encrypted file to the **test** R2 bucket and pings healthchecks (Raditya supplies the test credentials in the local `.env`; the agent never reads `.env`).
 - [x] Forced failure (wrong password) pings `/fail` and leaves no file anywhere.
 - [x] No plaintext dump on any disk path during or after the run.
 - [x] `systemd-analyze verify` passes on the unit files (if available locally; otherwise note it for ticket 13).
