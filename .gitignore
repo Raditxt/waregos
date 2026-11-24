@@ -7,12 +7,10 @@ dist/
 build/
 out/
 
-# Environment variables (JANGAN commit ini)
-.env
-.env.local
-.env.*.local
+# Environment variables (JANGAN commit ini). Hanya contoh *.example yang masuk repo.
+.env*
 *.env
-.env.rehearsal
+!.env*.example
 
 # Backup files (data sensitif)
 backups/
@@ -49,6 +47,5 @@ ehthumbs.db
 # Testing
 coverage/
 .nyc_output/
-.env.supabase
 
 .claude/settings.local.json

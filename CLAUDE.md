@@ -63,11 +63,11 @@ npx tsx apps/api/src/shared/body-limit.test.ts       # prints "body-limit: semua
 npm run db:migrate  -w @waregos/database   # prisma migrate dev (new migration), localhost only
 npm run db:deploy   -w @waregos/database   # apply migrations, LOCALHOST ONLY, check Datasource first
 npm run db:generate -w @waregos/database
-npm run db:seed     -w @waregos/database   # LOCALHOST ONLY; needs SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD
+npm run db:seed     -w @waregos/database   # LOCALHOST ONLY; dev creates sample users, SEED_ADMIN_* only with NODE_ENV=production
 npm run db:studio   -w @waregos/database
 ```
 
-**Env.** Copy `apps/api/.env.example` to `apps/api/.env`. The API exits at startup unless `JWT_SECRET` and `DATABASE_URL` are set. `CORS_ORIGINS` is required in every environment for browser access (dev: `http://localhost:3000`); if it is empty, every browser origin is rejected. In production `JWT_SECRET` must be at least 32 characters. `TRUST_PROXY_CIDRS` (comma-separated CIDRs of trusted proxies, ADR 0008) may stay empty in dev (`trustProxy=false`); in production the API exits at startup when it is empty. Prisma also reads `DIRECT_URL`. The web app reads `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api`), which is baked in at build time.
+**Env.** Copy `apps/api/.env.example` to `apps/api/.env` and `packages/database/.env.example` to `packages/database/.env` (each example documents its variables; full table in `README.md`). The API exits at startup unless `JWT_SECRET` and `DATABASE_URL` are set. `CORS_ORIGINS` is required in every environment for browser access (dev: `http://localhost:3000`); if it is empty, every browser origin is rejected. In production `JWT_SECRET` must be at least 32 characters. `TRUST_PROXY_CIDRS` (comma-separated CIDRs of trusted proxies, ADR 0008) may stay empty in dev (`trustProxy=false`); in production the API exits at startup when it is empty. Prisma also reads `DIRECT_URL`. The web app reads `NEXT_PUBLIC_API_URL` (default `http://localhost:3001/api`), which is baked in at build time.
 
 **Tests.** There is no test runner yet. `*.test.ts` files are plain `node:assert` scripts run with `npx tsx <file>`.
 
@@ -79,35 +79,14 @@ docker compose -f docker-compose.rehearsal.yml --env-file .env.rehearsal up --bu
 
 ## Architecture
 
-```
-apps/api           Fastify 5 REST API (Prisma, JWT, Zod)
-apps/web           Next.js 16 / React 19 client-only dashboard, `output: 'export'` (static, Cloudflare Pages)
-packages/database  Prisma schema, migrations, seed
-packages/types     Shared DTOs / JwtPayload between api and web
-packages/utils     Shared helpers (shop-timezone date boundaries, invoice numbers)
-```
+npm workspaces monorepo: `apps/api` (Fastify 5 REST API, Prisma, JWT, Zod), `apps/web` (Next.js 16 static export, client-only), `packages/database` (Prisma schema, migrations, seed), `packages/types`, `packages/utils`, `deploy/` (VPS stack). Full folder map, request flow, domain rules and deploy diagrams (now vs after cutover): **`docs/architecture.md`**. Domain terms: `GLOSSARY.md`.
 
-The workspace packages ship raw TypeScript (`main: ./src/index.ts`) and are never built on their own. tsup bundles `@waregos/*` into `apps/api/dist/index.js` (`noExternal`), and Next compiles them for the web app.
+Rules agents most often need while coding (details in `docs/architecture.md`):
 
-Deployment today: the API runs from `apps/api/Dockerfile` on Railway (`railway.json`, healthcheck `GET /health`), the database is on Supabase, and a daily encrypted backup runs in `.github/workflows/db-backup.yml`. Moving the API and Postgres to a VPS (Docker Compose + Cloudflare Tunnel) is planned before v1 go-live; see `docs/adr/0005-vps-colocated-postgres-cloudflare-tunnel.md`.
-
-### API (`apps/api/src`)
-
-- `index.ts` validates env first, then registers plugins (`prisma`, helmet, `jwt`, `cors`, rate-limit with `global: false`), then mounts each module under `/api/<name>`.
-- `modules/<name>/` follows `*.route.ts` (HTTP, auth, Zod parse, audit log) -> `*.service.ts` (a class taking `PrismaClient`, holding the business logic) -> `*.schema.ts` (Zod). Routes call `schema.safeParse` and return `validationError(...)` on failure. Services throw a module-specific error class (e.g. `StockError`, `PurchaseError`), which the route maps to a 400 with a specific error code. Anything else goes to `shared/error-handler.ts`.
-- Response envelope (`shared/response.ts`): `{ success: true, data, message? }`, `{ success: true, data, meta }` for paginated results, `{ success: false, error: CODE, message }` for errors. The web `getErrorMessage` in `apps/web/src/lib/api.ts` shows the backend `message` first, then falls back to its own error-code map, so new error codes need a good Indonesian `message`.
-- Auth (`plugins/jwt.ts`): use `preHandler: [app.authenticate]` or `[app.adminOnly]`. Every request re-reads the user from the DB. The token is rejected when the account is inactive or `tokenVersion` no longer matches the token's `tv` claim (bumping it revokes sessions after a password change or reset). **The role always comes from the DB, not from the token.**
-- Cost visibility: services take the caller's role (e.g. `new ProductsService(prisma, payload.role)`) and null out `buyPrice` and cost-derived fields for non-admins. Purchases, stock movements, top products, dead stock, price history and purchase history are `adminOnly`.
-- Stock changes run inside `prisma.$transaction`, update stock atomically in SQL (never read-modify-write in JS), and write a `StockMovement` row with `stockBefore`, `stockAfter` and, for restocks and adjustments, `unitCost`. Routes then write an `ActivityLog` entry through `ActivityService.log`.
-- Restock costing is a moving weighted average computed in one SQL `UPDATE`. Purchases have a `kind`: `PURCHASE` (real spending) or `OPENING` (opening stock, not counted as spending).
-- Expiry is tracked per purchase line. `shared/expiry-layers.ts` allocates current stock across batches newest-first (oldest sold first); stock not covered by any batch is reported as `untracked`.
-- Customer debt (`shared/debt-ledger.ts`) is an append-only ledger. The balance is the signed sum of `DEBT` (+), `PAYMENT` (-) and `CANCEL` (-, a reversing entry) rows, keyed by the normalized, case-insensitive customer name. Writes take `pg_advisory_xact_lock` on that customer inside the transaction.
-
-### Web (`apps/web/src`)
-
-- App Router with one folder per screen (`pos`, `products`, `purchases`, `debts`, `closing`, `reports`, `audit`, `users`, `dashboard`). Each screen's `layout.tsx` wraps it in `AppShell`. Everything renders client-side because of the static export: no server components, route handlers or `next/image` optimization.
-- `lib/api.ts` is the shared axios instance. It attaches the bearer token from `localStorage` (`waregos_token`) and handles 401 globally (toast and redirect to login). `lib/store.ts` is the zustand auth store.
-- UI is shadcn/ui (`components/ui`) + Tailwind v4, Recharts for charts, sonner for toasts. The sidebar hides admin screens via `user.role === 'ADMIN'`, but the real enforcement is server-side.
+- API module pattern: `*.route.ts` (auth, Zod `safeParse` → `validationError`, audit log) → `*.service.ts` (class taking `PrismaClient`, throws a module error class) → `*.schema.ts`. Response envelope from `shared/response.ts`; new error codes need an Indonesian `message`.
+- Auth: `preHandler: [app.authenticate]` or `[app.adminOnly]`. **The role always comes from the DB, not from the token.** Services take the caller's role and null out cost fields for cashiers.
+- Stock changes: inside `prisma.$transaction`, atomic SQL updates (never read-modify-write in JS), a `StockMovement` row, then `ActivityService.log`. Customer debt is an append-only ledger with a per-customer advisory lock.
+- Web: everything client-side (no server components, route handlers or `next/image`). Use `lib/api.ts` for requests; the API URL comes only from `lib/config.ts`.
 
 ## Conventions
 
