@@ -1,8 +1,9 @@
 import axios, { AxiosError } from 'axios'
 import { toast } from 'sonner'
+import { API_URL } from './config'
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api',
+  baseURL: API_URL,
 })
 
 // Interceptor: tambahkan token ke setiap request

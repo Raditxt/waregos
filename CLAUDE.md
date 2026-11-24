@@ -58,6 +58,7 @@ npx tsx apps/api/src/shared/expiry-layers.test.ts   # prints "expiry-layers: sem
 npx tsx apps/api/src/shared/trust-proxy.test.ts      # prints "trust-proxy: semua tes lulus"; throws on failure
 npx tsx apps/api/src/shared/input-limits.test.ts     # prints "input-limits: semua tes lulus"; throws on failure
 npx tsx apps/api/src/shared/body-limit.test.ts       # prints "body-limit: semua tes lulus"; throws on failure
+npx tsx apps/web/src/lib/config.test.ts              # prints "config: semua tes lulus"; throws on failure
 
 # Database (packages/database; schema at packages/database/prisma/schema.prisma)
 npm run db:migrate  -w @waregos/database   # prisma migrate dev (new migration), localhost only

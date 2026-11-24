@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/store'
+import { API_ORIGIN } from '@/lib/config'
 import { Sidebar } from './sidebar'
 import { Menu, X } from 'lucide-react'
 
@@ -71,9 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') ?? 'http://localhost:3001'
-        await fetch(`${baseUrl}/health`)
+        await fetch(`${API_ORIGIN}/health`)
 
         const wasOffline = sessionStorage.getItem('server_was_offline')
         if (wasOffline) {
