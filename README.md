@@ -44,28 +44,67 @@ apps/
 packages/
   database/    Schema Prisma, migrasi, seed
   types/       Tipe bersama API ↔ web
-  utils/       Utilitas bersama (batas hari zona waktu toko, nomor invoice)
-docs/          Roadmap, riwayat, dan ADR
+  utils/       Utilitas bersama (batas hari zona waktu toko, nomor invoice, batas input)
+deploy/        Stack produksi di VPS (Compose, job backup, systemd)
+docs/          Roadmap, riwayat, arsitektur, dan ADR
 ```
+
+Penjelasan lengkap (alur request, aturan domain, diagram deploy) ada di
+[`docs/architecture.md`](docs/architecture.md). Istilah domain ada di [`GLOSSARY.md`](GLOSSARY.md).
 
 ## Menjalankan secara lokal
 
-Prasyarat: Node.js 22+, PostgreSQL, npm.
+Prasyarat: Node.js 22+, PostgreSQL lokal, npm.
 
 ```sh
 npm install
 
-# Isi DATABASE_URL, JWT_SECRET, dan tambahkan CORS_ORIGINS=http://localhost:3000
-cp apps/api/.env.example apps/api/.env
-cp packages/database/.env.example packages/database/.env
+# 1. Salin contoh env, lalu isi (komentar di tiap file menjelaskan variabelnya)
+cp apps/api/.env.example apps/api/.env                     # DATABASE_URL, JWT_SECRET, CORS_ORIGINS
+cp packages/database/.env.example packages/database/.env   # DATABASE_URL, DIRECT_URL
+# apps/web/.env.example hanya perlu disalin ke apps/web/.env.local kalau API tidak di localhost:3001
 
+# 2. Database (hanya localhost: pastikan baris "Datasource" yang dicetak Prisma = localhost:5432)
 npm run db:deploy -w @waregos/database
-npm run db:seed   -w @waregos/database   # butuh SEED_ADMIN_USERNAME dan SEED_ADMIN_PASSWORD
+npm run db:seed   -w @waregos/database
 
+# 3. Jalankan API + web
 npm run dev
 ```
 
-API berjalan di `http://localhost:3001`, web di `http://localhost:3000`.
+API berjalan di `http://localhost:3001`, web di `http://localhost:3000`. Seed dev membuat akun
+contoh `admin` / `admin123` (Admin) dan `ibu` / `kasir123` (Kasir).
+
+### Variabel env
+
+| Variabel | File | Wajib | Fungsi |
+|---|---|---|---|
+| `DATABASE_URL` | api, database | ya | Koneksi Postgres |
+| `DIRECT_URL` | database | ya | Koneksi langsung untuk migrasi Prisma |
+| `JWT_SECRET` | api | ya | Rahasia token login (produksi: minimal 32 karakter) |
+| `CORS_ORIGINS` | api | ya | Origin web yang boleh memanggil API, dipisah koma |
+| `TRUST_PROXY_CIDRS` | api | produksi | CIDR proxy tepercaya untuk IP klien (ADR 0008) |
+| `API_PORT`, `API_HOST`, `NODE_ENV` | api | tidak | Default `3001`, `0.0.0.0`, `development` |
+| `SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD` | database | seed produksi | Akun admin awal saat `NODE_ENV=production` |
+| `NEXT_PUBLIC_API_URL` | web | tidak | Base URL API, ditanam saat build. Default `http://localhost:3001/api` |
+
+Variabel stack VPS (image, password role database, tunnel, backup R2) ada di
+[`deploy/.env.example`](deploy/.env.example), dan untuk gladi bersih di `.env.rehearsal.example`.
+
+### Verifikasi
+
+Jalankan sebelum menganggap perubahan selesai:
+
+```sh
+npm run typecheck -w @waregos/api
+cd apps/web; npx tsc --noEmit; cd ../..
+npx tsx apps/api/src/shared/expiry-layers.test.ts
+npx tsx apps/api/src/shared/trust-proxy.test.ts
+npx tsx apps/api/src/shared/input-limits.test.ts
+npx tsx apps/api/src/shared/body-limit.test.ts
+```
+
+Belum ada test runner. Tiap `*.test.ts` adalah skrip `node:assert` yang mencetak "semua tes lulus".
 
 Gladi bersih dengan Docker (database kosong → migrasi → seed → API di port 3002):
 
@@ -91,6 +130,9 @@ memakai POS tanpa buku catatan. Detail lengkap ada di [`docs/roadmap.md`](docs/r
 
 - [`docs/roadmap.md`](docs/roadmap.md): tahapan menuju v1 dan setelahnya
 - [`docs/history.md`](docs/history.md): apa yang sudah terjadi dan pelajarannya
+- [`docs/architecture.md`](docs/architecture.md): peta folder, alur request, aturan domain, diagram deploy
+- [`GLOSSARY.md`](GLOSSARY.md): istilah domain (Saldo Awal, hutang, closing, dead stock, ...)
+- [`deploy/README.md`](deploy/README.md): menjalankan stack produksi di VPS
 - [`docs/adr/`](docs/adr/): *Architecture Decision Records*, alasan di balik keputusan teknis
 
 ## Konvensi
