@@ -22,7 +22,7 @@ ADR: 0007
 
 ## Acceptance
 
-- [ ] Locally, against the stack from ticket 04: a run uploads one encrypted file to the **test** R2 bucket and pings healthchecks (Raditya supplies the test credentials in the local `.env`; the agent never reads `.env`).
+- [x] Locally, against the stack from ticket 04: a run uploads one encrypted file to the **test** R2 bucket and pings healthchecks (Raditya supplies the test credentials in the local `.env`; the agent never reads `.env`).
 - [x] Forced failure (wrong password) pings `/fail` and leaves no file anywhere.
 - [x] No plaintext dump on any disk path during or after the run.
 - [x] `systemd-analyze verify` passes on the unit files (if available locally; otherwise note it for ticket 13).
@@ -71,3 +71,16 @@ ADR: 0007
     perintah di README bagian "Backup di laptop" lalu centang item itu. Hal yang baru teruji di
     R2 sungguhan: `RCLONE_CONFIG_R2_NO_CHECK_BUCKET` dengan token yang hanya boleh menulis objek,
     dan `rclone lsf` dengan token itu.
+- 2026-11-24 (Raditya + agent): uji ke bucket R2 uji sungguhan dan check healthchecks uji
+  (setelah VM-09 blok 1). Hasil: `waregos-…Z.dump.age` 43.788 byte, 109 baris daftar isi,
+  ping healthchecks sukses.
+  - Temuan: rclone 1.60.1 (paket Debian) selalu gagal di percobaan 1. Setelah PUT sukses, R2
+    membalas `X-Amz-Version-Id` dan rclone memverifikasi dengan `HEAD ?versionId=...`, yang
+    ditolak R2 (501 NotImplemented). Percobaan 2 "sukses" hanya karena objeknya sudah ada.
+  - Dibuktikan manual: dengan `RCLONE_CONFIG_R2_NO_HEAD=true` urutannya 404, 200,
+    "Copied (new)", tanpa 501.
+  - Perbaikan (branch `fix/backup-r2-no-head`): `RCLONE_CONFIG_R2_NO_HEAD: "true"` di env
+    service `backup` (`deploy/compose.yaml`). Verifikasi ukuran tetap lewat
+    `rclone lsf --format s` di `backup.sh`, yang gagal keras kalau ukuran di R2 beda dengan lokal.
+  - Acceptance 1 belum dicentang: menunggu Raditya menjalankan ulang backup penuh dengan
+    perbaikan ini dan lolos tanpa retry.
