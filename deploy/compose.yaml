@@ -119,6 +119,9 @@ services:
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       # Token VPS hanya boleh menulis objek, tidak boleh membuat atau membaca daftar bucket.
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+      # R2 menolak HEAD ?versionId=... yang dikirim rclone setelah PUT (501 NotImplemented).
+      # Ukuran tetap diverifikasi `rclone lsf --format s` di backup.sh.
+      RCLONE_CONFIG_R2_NO_HEAD: "true"
     # Plaintext dump hanya di sini (RAM). Ikut dihitung ke mem_limit.
     tmpfs:
       - /work:size=128m,mode=0700,uid=999,gid=999
