@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { UserDto } from '@waregos/types'
 import axios from 'axios'
+import { API_URL } from './config'
 
 interface AuthState {
   user: UserDto | null
@@ -12,8 +13,6 @@ interface AuthState {
   hydrate: () => void
   login: (username: string, password: string) => Promise<boolean>
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'
 
 const TOKEN_KEY = 'waregos_token'
 const USER_KEY = 'waregos_user'
