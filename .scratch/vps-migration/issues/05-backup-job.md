@@ -1,6 +1,6 @@
 # 05 — Backup job (image, script, systemd timer)
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 03, 04, 09 (hanya untuk uji dengan R2 dan healthchecks sungguhan)
 Stage: 5
