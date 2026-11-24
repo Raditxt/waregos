@@ -20,3 +20,5 @@ ADR: 0006
 - [ ] Memory after start noted (baseline for the 70% rule).
 
 ## Comments
+- 2026-11-24: bloker 09 sudah lepas (VM-09 resolved; tunnel "waregos" dan route
+  `api.waregos.com` sudah ada, menunggu `cloudflared` di tiket ini). Masih menunggu 08 dan tiket 06–07.

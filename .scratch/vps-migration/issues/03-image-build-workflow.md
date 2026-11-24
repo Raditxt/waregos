@@ -41,3 +41,6 @@ New GitHub Actions workflow that builds `apps/api/Dockerfile` and pushes it to G
   YARN_VERSION, NODE_ENV=production. Image uji sudah dihapus. Validitas YAML dicek dengan
   parser (js-yaml); `actionlint` tidak tersedia, jadi kesalahan semantik workflow baru terlihat
   saat Raditya menjalankannya pertama kali.
+- 2026-11-24 (Raditya): sisa DoD terverifikasi. Package `waregos-api` dan `waregos-backup`
+  di GHCR sudah public, dan `docker pull` tag SHA `332f2f6…` dari VPS tanpa login berhasil
+  (detail di VM-09).

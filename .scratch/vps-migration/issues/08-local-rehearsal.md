@@ -18,3 +18,5 @@ Raditya runs `deploy/compose.yaml` on the laptop with a local `.env` and test cr
 - [ ] Anything that differed from `deploy/README.md` is fixed in the repo before ticket 10.
 
 ## Comments
+- 2026-11-24: bloker 09 sudah lepas (VM-09 resolved; bucket uji dan check uji tersedia).
+  05 juga resolved, jadi yang tersisa hanya 04, yang sudah resolved.

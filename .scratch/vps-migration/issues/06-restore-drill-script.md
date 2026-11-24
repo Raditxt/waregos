@@ -18,3 +18,4 @@ ADR: 0007
 - [ ] No bucket names that reveal anything beyond the project, no account IDs, no server details in the repo.
 
 ## Comments
+- 2026-11-24: bloker 05 sudah resolved, jadi tiket ini tidak terblokir lagi.

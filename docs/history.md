@@ -131,3 +131,14 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
   - G1-04 (`needs-triage`): show the shop name "Toko Rabay Orange" and a logo in the cashier UI on phones. The mobile header already shows both in small type; check how it looks on the phone first.
   - G1-05 (`needs-triage`): friendlier create/edit/delete flows. Needs grilling on flow and persona (admin vs cashier).
 - Not a ticket: manual QRIS payment must be tested during the parallel run.
+
+## 2026-11-24: VM-05 and VM-09 closed
+
+- VM-05 (backup job) closed. The run against the real R2 test bucket passed (43,788-byte file, 109 TOC lines, healthchecks ping). rclone 1.60.1 always failed its first attempt on R2: after a successful PUT, R2 returns `X-Amz-Version-Id`, and rclone's follow-up `HEAD ?versionId=...` gets 501 NotImplemented. Fixed with `RCLONE_CONFIG_R2_NO_HEAD=true` (PR #17); `backup.sh` still checks the uploaded size with `rclone lsf`.
+- VM-09 (cloud accounts) closed:
+  - GHCR packages `waregos-api` and `waregos-backup` are public; the VPS pulls them without logging in.
+  - R2 production bucket with a 30-day bucket lock and a 35-day lifecycle rule. A delete with the VPS token is refused (409), the laptop token can only read.
+  - healthchecks.io checks `waregos-backup` and `waregos-disk`. Notifications are email only; Telegram was dropped.
+  - Remotely-managed tunnel "waregos" with route `api.waregos.com`, inactive until VM-10.
+  - Deviation: the `age` private key has a second copy on the laptop's local disk, but no offline copy (paper or USB). Raditya's decision.
+- VM-08 and VM-10 are no longer blocked by VM-09.
