@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-11-17. Owner: Raditya. Update this file when a stage finishes.
+Last updated: 2026-11-24. Owner: Raditya. Update this file when a stage finishes.
 
 ## Where we are
 
@@ -14,8 +14,8 @@ Last updated: 2026-11-17. Owner: Raditya. Update this file when a stage finishes
 - Work happens on branch `chore/vps-migration`; tickets in `.scratch/vps-migration/`.
 - Deploy stack, backups and client IP decided 2026-11-13 (ADR 0006, 0007, 0008). Tickets: `.scratch/vps-migration/` and `.scratch/api-hardening/` (cutover gate).
 - Code PRs are merged to `main` per phase; production only runs images built from `main`.
-- Done so far: freeze dump (VM-01, 2026-11-15), Compose stack (VM-04, 2026-11-16), image build workflow (VM-03) and `TRUST_PROXY_CIDRS` (VM-02) plus `.scratch/api-hardening/` 01–03 (2026-11-17, merged to `main` in PR #12 and #13; first image `waregos-api:d7da86a…` built). Backup job (VM-05) is written and tested locally with a stand-in for R2; the real R2 test waits for VM-09.
-- Next action: Raditya does VM-09 (cloud accounts; the R2 test bucket and test check first) and makes the GHCR packages public. The agent continues with VM-06 (restore drill script) and VM-07 (host disk check), then closes VM-05 against the test bucket.
+- Done so far: freeze dump (VM-01, 2026-11-15), Compose stack (VM-04, 2026-11-16), image build workflow (VM-03) and `TRUST_PROXY_CIDRS` (VM-02) plus `.scratch/api-hardening/` 01–03 (2026-11-17, merged to `main` in PR #12 and #13; first image `waregos-api:d7da86a…` built). On 2026-11-24: backup job (VM-05) closed after a run against the real R2 test bucket, cloud accounts (VM-09: R2 production bucket with lock, healthchecks.io checks, tunnel, public GHCR packages) closed, and the last VM-03 check (pull from the VPS without logging in) verified.
+- Next action: The agent: VM-06 (restore drill script), VM-07 (disk check). Raditya: VM-08 (local rehearsal, after 06–07), then VM-10 (VPS stack up, infra chat).
 
 ## Stages
 
@@ -27,7 +27,7 @@ Last updated: 2026-11-17. Owner: Raditya. Update this file when a stage finishes
 | 2 | Server setup | Hardening (non-root user, key-only SSH, firewall, unattended upgrades, swap 2 GB) — done 2026-11-10; Docker; `/srv/waregos` with Compose: Postgres (internal network only), API, `cloudflared`; memory limits per container; small Postgres settings; 14 migrations; roles (owner, `waregos_app`, read-only backup) | 17–23 Nov | in progress |
 | 3 | Move data | Freeze dump of `public` from Supabase (session pooler) right after Railway stops, `age`-encrypted; restore to the VPS as `waregos_owner`, compare row counts per table | dump 14–15 Nov, restore 17–23 Nov | open |
 | 4 | API live | `api.waregos.com` through the tunnel, `/health`, smoke tests, `scripts/security-suite.ps1`, client-IP and rate-limit retest behind the tunnel (spoofed XFF must get 429 on attempt 6) | 17–23 Nov | open |
-| 5 | Backups | Every 6 h (host systemd timer), `age`-encrypted, offsite to Cloudflare R2 with 30-day bucket lock, healthchecks.io alarm (Telegram + email), restore drill on the laptop. Daily disk check. **Gate for cutover** (ADR 0007) | 24–30 Nov | open |
+| 5 | Backups | Every 6 h (host systemd timer), `age`-encrypted, offsite to Cloudflare R2 with 30-day bucket lock, healthchecks.io alarm (email), restore drill on the laptop. Daily disk check. **Gate for cutover** (ADR 0007) | 24–30 Nov | open |
 | 6 | Cutover | Gated by stage 5, `.scratch/api-hardening/` and the ADR 0008 port/network verification. Attach `app.waregos.com` to Cloudflare Pages, set `NEXT_PUBLIC_API_URL` and `CORS_ORIGINS` (`https://app.waregos.com`, keep `https://waregos.pages.dev` until stable), re-enable Cloudflare production auto-deploy, retry deployment `38117c5`, smoke test, move UptimeRobot | 8–14 Dec | open |
 | 7 | Retire old hosting | Disable `db-backup.yml` for Supabase, stop Railway, delete the Supabase project after the VPS has been stable for a few days | ~1 week after cutover | open |
 | 8 | Go-live prep | **Required:** cashier account for the shop with a strong password (plus a POS test on the cashier's real device); `docs/panduan-darurat.md`; CI (typecheck + build) and branch protection on `main`. **If time allows, otherwise after v1:** `docs/disaster-recovery.md` (the restore-drill runbook covers restores until then), CSP headers (`apps/web/public/_headers`), `chore/deps`, `.gitattributes` normalization, `LICENSE` | 15–21 Dec | open |
