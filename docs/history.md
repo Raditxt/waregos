@@ -142,3 +142,17 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
   - Remotely-managed tunnel "waregos" with route `api.waregos.com`, inactive until VM-10.
   - Deviation: the `age` private key has a second copy on the laptop's local disk, but no offline copy (paper or USB). Raditya's decision.
 - VM-08 and VM-10 are no longer blocked by VM-09.
+
+## 2026-11-25: Restore drill (lolos)
+
+- Backup: `waregos-20261124-110346Z.dump.age` (43788 byte, umur 18 jam saat ditarik; wajar untuk bucket uji). Bucket R2 **uji** dengan kunci `age` produksi. Script: unduh OK, jalan kedua "Sudah ada".
+- Image: API dan backup `332f2f6`, Postgres `17.11-bookworm`.
+- Restore sebagai `waregos_owner`: 109 baris daftar isi, satu error yang diharapkan (`schema "public" already exists`), `pg_restore` exit 1. Kunci privat terbukti cocok.
+- `prisma migrate status`: 14 migrasi, up to date.
+- Jumlah baris: 14 tabel, sama persis dengan freeze dump Supabase: `users` 1, `categories` 9, `units` 7, `products` 18, `activity_logs` 77, `_prisma_migrations` 14.
+- Login admin lewat API: OK, `/api/auth/me` 200. `down -v` bersih.
+- Waktu total: sekitar 18 menit. Catatan (runbook ikut diperbaiki untuk 1–3):
+  1. `git switch main` di langkah 0 tidak berlaku selama kode drill belum di `main`; pakai branch yang berisi kode drill.
+  2. Alias `dc` tidak ada di laptop; stack lokal diturunkan dengan `docker compose -p waregos down`.
+  3. Secret R2 dan password admin sekarang dibaca dengan `Read-Host -AsSecureString` supaya tidak tampil di layar.
+  4. Docker tidak bisa diandalkan me-mount file kunci dari drive Google Drive; pakai salinan kunci di disk lokal.

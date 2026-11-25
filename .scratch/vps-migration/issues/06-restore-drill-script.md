@@ -1,6 +1,6 @@
 # 06 — Restore drill script and runbook
 
-Status: ready-for-human
+Status: resolved
 Type: task
 Blocked by: 05
 Stage: 5
@@ -13,9 +13,9 @@ ADR: 0007
 
 ## Acceptance
 
-- [ ] Script tested locally against the test bucket.
-- [ ] Runbook followed end to end once on the laptop against a test-bucket dump.
-- [ ] No bucket names that reveal anything beyond the project, no account IDs, no server details in the repo.
+- [x] Script tested locally against the test bucket.
+- [x] Runbook followed end to end once on the laptop against a test-bucket dump.
+- [x] No bucket names that reveal anything beyond the project, no account IDs, no server details in the repo.
 
 ## Comments
 - 2026-11-24: bloker 05 sudah resolved, jadi tiket ini tidak terblokir lagi.
@@ -49,3 +49,15 @@ ADR: 0007
     uji dari uji VM-05 dienkripsi ke kunci produksi, jadi langkah 3 sekalian membuktikan kunci
     privat masih bisa dijangkau. Pembanding langkah 5 = database lokal sumber dump VM-05 (kalau
     sudah dibuang, cukup `users` > 0 dan `_prisma_migrations` = 14).
+- 2026-11-25 (Raditya): restore drill dengan bucket R2 uji + kunci `age` produksi **lolos**.
+  Backup `waregos-20261124-110346Z.dump.age` (43788 byte, umur 18 jam); script unduh OK, jalan
+  kedua "Sudah ada". Image `332f2f6`, Postgres `17.11-bookworm`. Restore sebagai `waregos_owner`:
+  109 baris daftar isi, satu error yang diharapkan, `pg_restore` exit 1; kunci di disk lokal
+  terbukti cocok. `migrate status` 14 migrasi up to date. 14 tabel sama persis dengan freeze dump
+  Supabase. Login admin OK, `/api/auth/me` 200. `down -v` bersih. Sekitar 18 menit. Detail di
+  `docs/history.md` (2026-11-25).
+  - Runbook diperbaiki: langkah 0 memakai branch yang berisi kode drill (tidak selalu `main`),
+    `docker compose -p waregos down` alih-alih `dc down`, secret R2 dan password admin lewat
+    `Read-Secret` (`Read-Host -AsSecureString`).
+  - Catatan tanpa perubahan runbook: Docker tidak bisa diandalkan me-mount kunci dari drive
+    Google Drive; pakai salinan kunci di disk lokal.

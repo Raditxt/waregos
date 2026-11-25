@@ -33,14 +33,19 @@ container `backup` yang menulis hanya ke tmpfs, sama seperti di VPS.
 Semua nilai di bawah hanya hidup di sesi ini dan hilang saat jendela ditutup. **Tidak ada
 file `.env`.** Password database dibuat acak dan dibuang setelah drill; bukan password produksi.
 
-Turunkan dulu stack lokal lain yang memakai `deploy/compose.yaml` dengan `dc down` (data di
-volume tetap aman). Network `10.89.10.0/24` hanya bisa dipakai satu project sekaligus, dan
-`dc stop` tidak cukup karena network-nya tetap ada; gejalanya `Pool overlaps with other one on
-this address space` di langkah 2.
+Turunkan dulu stack lokal lain yang memakai `deploy/compose.yaml` dengan
+`docker compose -p waregos down` (data di volume tetap aman; di laptop tidak ada alias `dc`).
+Network `10.89.10.0/24` hanya bisa dipakai satu project sekaligus, dan `stop` tidak cukup
+karena network-nya tetap ada; gejalanya `Pool overlaps with other one on this address space`
+di langkah 2.
+
+Branch yang di-switch harus berisi kode drill (`compose.yaml`, `bootstrap-roles.sql` dan
+`scripts/` yang dipakai di bawah). Biasanya `main`; selama kode drill belum di-merge ke `main`,
+pakai branch tempat kode itu berada.
 
 ```powershell
 cd D:\Kuroya\Project\waregos
-git switch main; git pull --ff-only   # compose.yaml dan bootstrap terbaru
+git switch main; git pull --ff-only   # atau branch yang berisi kode drill, lihat di atas
 
 $env:API_IMAGE_TAG = '<sha-penuh-dari-.env-VPS>'
 $env:POSTGRES_TAG  = (Get-Content deploy/postgres-tag)   # harus sama dengan POSTGRES_TAG di .env VPS
@@ -54,6 +59,8 @@ $env:CLOUDFLARED_TAG = 'tidak-dipakai'   # wajib terisi untuk compose; cloudflar
 $drillDir = 'D:\Waregos-Backup\drill'
 New-Item -ItemType Directory -Force $drillDir | Out-Null
 function drill { docker compose -p waregos-drill -f deploy/compose.yaml --env-file deploy/.env.example @args }
+# Rahasia diketik tanpa tampil di layar; nilainya tetap hanya hidup di sesi ini.
+function Read-Secret($prompt) { [Net.NetworkCredential]::new('', (Read-Host $prompt -AsSecureString)).Password }
 ```
 
 `--env-file deploy/.env.example` sengaja: semua variabel yang dipakai sudah diisi di sesi, dan
@@ -66,7 +73,7 @@ nilai di sesi selalu menang atas isi file. Tanpa `--env-file`, compose diam-diam
 $env:R2_ENDPOINT          = Read-Host 'R2 endpoint'
 $env:R2_BUCKET            = Read-Host 'R2 bucket'
 $env:R2_ACCESS_KEY_ID     = Read-Host 'R2 access key ID (token laptop)'
-$env:R2_SECRET_ACCESS_KEY = Read-Host 'R2 secret (token laptop)'
+$env:R2_SECRET_ACCESS_KEY = Read-Secret 'R2 secret (token laptop)'
 .\scripts\pull-latest-backup.ps1
 Remove-Item Env:R2_*
 $backup = Get-ChildItem D:\Waregos-Backup\r2\waregos-*.dump.age | Sort-Object Name -Descending | Select-Object -First 1
@@ -151,7 +158,7 @@ drill up -d api
 drill ps api       # tunggu STATUS (healthy); /health menjalankan SELECT 1 sebagai waregos_app
 drill cp scripts/restore-drill-login.js api:/tmp/login.js
 $env:DRILL_USERNAME = Read-Host 'Username admin'
-$env:DRILL_PASSWORD = Read-Host 'Password admin'
+$env:DRILL_PASSWORD = Read-Secret 'Password admin'
 drill exec -e DRILL_USERNAME -e DRILL_PASSWORD api node /tmp/login.js
 Remove-Item Env:DRILL_USERNAME, Env:DRILL_PASSWORD
 ```
