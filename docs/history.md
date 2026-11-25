@@ -142,3 +142,17 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
   - Remotely-managed tunnel "waregos" with route `api.waregos.com`, inactive until VM-10.
   - Deviation: the `age` private key has a second copy on the laptop's local disk, but no offline copy (paper or USB). Raditya's decision.
 - VM-08 and VM-10 are no longer blocked by VM-09.
+
+## 2026-11-25: Restore drill (passed)
+
+- Backup: `waregos-20261124-110346Z.dump.age` (43,788 bytes, 18 hours old when pulled; expected for the test bucket). R2 **test** bucket with the production `age` key. Script: download OK, second run reported "Sudah ada" (already present).
+- Images: API and backup `332f2f6`, Postgres `17.11-bookworm`.
+- Restore as `waregos_owner`: 109 TOC lines, one expected error (`schema "public" already exists`), `pg_restore` exit 1. The private key is proven to match.
+- `prisma migrate status`: 14 migrations, up to date.
+- Row counts: 14 tables, identical to the Supabase freeze dump: `users` 1, `categories` 9, `units` 7, `products` 18, `activity_logs` 77, `_prisma_migrations` 14.
+- Admin login through the API: OK, `/api/auth/me` 200. `down -v` left nothing behind.
+- Total time: about 18 minutes. Notes (runbook fixed for 1–3):
+  1. `git switch main` in step 0 does not apply while the drill code is not on `main`; use the branch that contains the drill code.
+  2. The laptop has no `dc` alias; take the local stack down with `docker compose -p waregos down`.
+  3. The R2 secret and admin password are now read with `Read-Host -AsSecureString` so they do not show on screen.
+  4. Docker cannot reliably mount the key file from the Google Drive drive; use a copy of the key on local disk.

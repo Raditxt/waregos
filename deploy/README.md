@@ -87,6 +87,9 @@ journalctl -u waregos-backup.service -n 50   # log run terakhir
 
 Setelah unit di `repo/deploy/systemd/` berubah, ulangi `install` dan `daemon-reload`.
 
+Membuktikan backup bisa dipulihkan (sebelum cutover, tiap bulan, setelah naik versi major
+Postgres): `docs/restore-drill.md`, dijalankan di laptop.
+
 Naik versi minor Postgres: backup manual dulu, ubah `deploy/postgres-tag` lewat commit (image
 backup ikut dibangun ulang), lalu samakan `POSTGRES_TAG` di `.env` dan `dc up -d db`. Log tiap
 backup mencatat versi `pg_dump` dan server, jadi selisihnya terlihat.
