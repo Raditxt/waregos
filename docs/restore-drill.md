@@ -17,7 +17,7 @@ kecuali satu query hitung baris pembanding (langkah 5). Waktu: sekitar 20 menit.
 |---|---|
 | Docker Desktop jalan | — |
 | `age` (`winget install FiloSottile.age`) | — |
-| Kunci privat `age` | Salinan di laptop atau cloud. Drill ini sekalian membuktikan kunci masih bisa dijangkau |
+| Kunci privat `age` | Salinan di **disk lokal** laptop (mis. `D:`). Jangan dari drive Google Drive (`G:`): Docker Desktop tidak andal me-mount file dari sana. Kalau kunci hanya ada di cloud, salin dulu ke disk lokal. Drill ini sekalian membuktikan kunci masih bisa dijangkau |
 | Token R2 **laptop** (Object Read only, bucket produksi): endpoint, nama bucket, access key ID, secret | Pengelola password. Untuk uji script: token bucket **uji** |
 | `API_IMAGE_TAG` yang sedang jalan di VPS | `.env` di VPS (SHA penuh) |
 | Username + password satu akun admin produksi | Raditya |

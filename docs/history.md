@@ -143,16 +143,16 @@ Branch `feat/restock-policy`, merged to `main` as `38117c5`.
   - Deviation: the `age` private key has a second copy on the laptop's local disk, but no offline copy (paper or USB). Raditya's decision.
 - VM-08 and VM-10 are no longer blocked by VM-09.
 
-## 2026-11-25: Restore drill (lolos)
+## 2026-11-25: Restore drill (passed)
 
-- Backup: `waregos-20261124-110346Z.dump.age` (43788 byte, umur 18 jam saat ditarik; wajar untuk bucket uji). Bucket R2 **uji** dengan kunci `age` produksi. Script: unduh OK, jalan kedua "Sudah ada".
-- Image: API dan backup `332f2f6`, Postgres `17.11-bookworm`.
-- Restore sebagai `waregos_owner`: 109 baris daftar isi, satu error yang diharapkan (`schema "public" already exists`), `pg_restore` exit 1. Kunci privat terbukti cocok.
-- `prisma migrate status`: 14 migrasi, up to date.
-- Jumlah baris: 14 tabel, sama persis dengan freeze dump Supabase: `users` 1, `categories` 9, `units` 7, `products` 18, `activity_logs` 77, `_prisma_migrations` 14.
-- Login admin lewat API: OK, `/api/auth/me` 200. `down -v` bersih.
-- Waktu total: sekitar 18 menit. Catatan (runbook ikut diperbaiki untuk 1–3):
-  1. `git switch main` di langkah 0 tidak berlaku selama kode drill belum di `main`; pakai branch yang berisi kode drill.
-  2. Alias `dc` tidak ada di laptop; stack lokal diturunkan dengan `docker compose -p waregos down`.
-  3. Secret R2 dan password admin sekarang dibaca dengan `Read-Host -AsSecureString` supaya tidak tampil di layar.
-  4. Docker tidak bisa diandalkan me-mount file kunci dari drive Google Drive; pakai salinan kunci di disk lokal.
+- Backup: `waregos-20261124-110346Z.dump.age` (43,788 bytes, 18 hours old when pulled; expected for the test bucket). R2 **test** bucket with the production `age` key. Script: download OK, second run reported "Sudah ada" (already present).
+- Images: API and backup `332f2f6`, Postgres `17.11-bookworm`.
+- Restore as `waregos_owner`: 109 TOC lines, one expected error (`schema "public" already exists`), `pg_restore` exit 1. The private key is proven to match.
+- `prisma migrate status`: 14 migrations, up to date.
+- Row counts: 14 tables, identical to the Supabase freeze dump: `users` 1, `categories` 9, `units` 7, `products` 18, `activity_logs` 77, `_prisma_migrations` 14.
+- Admin login through the API: OK, `/api/auth/me` 200. `down -v` left nothing behind.
+- Total time: about 18 minutes. Notes (runbook fixed for 1–3):
+  1. `git switch main` in step 0 does not apply while the drill code is not on `main`; use the branch that contains the drill code.
+  2. The laptop has no `dc` alias; take the local stack down with `docker compose -p waregos down`.
+  3. The R2 secret and admin password are now read with `Read-Host -AsSecureString` so they do not show on screen.
+  4. Docker cannot reliably mount the key file from the Google Drive drive; use a copy of the key on local disk.
