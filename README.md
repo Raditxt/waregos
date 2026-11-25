@@ -35,7 +35,7 @@ Ada dua peran: **Admin** (pemilik toko) dan **Kasir**.
 
 - **Pagi, barang datang.** Admin mencatat pembelian: jumlah, harga beli, dan tanggal
   kedaluwarsa per kiriman. Stok bertambah, dan harga pokok dihitung ulang otomatis.
-- **Siang, melayani pembeli.** Kasir memakai layar POS: pilih atau scan barang, lalu bayar
+- **Siang, melayani pembeli.** Kasir memakai layar POS: cari barang (nama, SKU, atau kode barcode), lalu bayar
   tunai, QRIS (dikonfirmasi manual), atau **hutang** (dicatat atas nama pelanggan).
 - **Kapan saja, cek peringatan.** Dashboard menampilkan stok yang menipis, barang yang mendekati
   kedaluwarsa, dan barang yang tidak laku 30 hari atau lebih.
@@ -51,7 +51,9 @@ Kasir **tidak bisa** melihat harga beli atau laba per produk. Itu hanya untuk Ad
 
 Sudah jadi di branch `main` (diuji di laptop, belum dipakai di toko):
 
-- **Kasir (POS)** dengan pembayaran tunai, QRIS (konfirmasi manual), dan hutang, plus cari produk atau scan barcode
+- **Kasir (POS)** dengan pembayaran tunai, QRIS (konfirmasi manual), dan hutang. Produk dicari berdasarkan nama, SKU, atau kode barcode yang diketik di kolom
+  pencarian, lalu dipilih dari hasilnya. Scan barcode dengan kamera HP belum ada (tiket G1-02,
+  butuh HTTPS)
 - **Pembelian / restock** dengan harga pokok rata-rata bergerak (*moving average*) dan tanggal
   kedaluwarsa per batch
 - **Saldo awal**: mencatat barang yang sudah ada di rak saat sistem mulai dipakai, tanpa
