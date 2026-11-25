@@ -17,6 +17,7 @@ backups/
 *.sql
 !packages/database/prisma/migrations/**/migration.sql
 !deploy/sql/bootstrap-roles.sql
+!scripts/row-counts.sql
 *.dump
 
 # Local scripts (Windows specific)
